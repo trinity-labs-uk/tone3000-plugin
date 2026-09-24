@@ -11,11 +11,21 @@ if (entries.length === 0) throw new Error('No UI tests found');
 
 const output = await mkdtemp(join(tmpdir(), 't3k-ui-tests-'));
 try {
-  await build({ entryPoints: entries, outdir: output, outExtension: { '.js': '.mjs' },
-    bundle: true, platform: 'node', format: 'esm', logLevel: 'silent' });
-  const files = (await readdir(output)).filter((name) => name.endsWith('.test.mjs'));
-  const result = spawnSync(process.execPath, ['--test', ...files.map((name) => join(output, name))],
-    { stdio: 'inherit' });
+  await build({
+    entryPoints: entries,
+    outdir: output,
+    outExtension: { '.js': '.cjs' },
+    bundle: true,
+    platform: 'node',
+    format: 'cjs',
+    logLevel: 'silent',
+  });
+  const files = (await readdir(output)).filter((name) => name.endsWith('.test.cjs'));
+  const result = spawnSync(
+    process.execPath,
+    ['--test', ...files.map((name) => join(output, name))],
+    { stdio: 'inherit' }
+  );
   process.exitCode = result.status ?? 1;
 } finally {
   await rm(output, { recursive: true, force: true });

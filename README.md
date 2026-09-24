@@ -97,13 +97,13 @@ needs that postinstall to download the esbuild binary.
 
 The publishable key is an OAuth client ID. It does not sign users into the
 key owner's account: each person signs into their own TONE3000 account.
-On Artemis, enter a key in Plugin Settings on the device after installation.
-The Artemis bundle deliberately contains no key. Create one in your own
-TONE3000 account under Settings > API Keys and register the Linux redirect
-URI below. The key is saved in the WebView's local storage, so it persists
-across app restarts. Changing it clears the previous login session.
+The Artemis bundle uses `ui/.env` when it contains a publishable key. Create
+one in your own TONE3000 account under Settings > API Keys and register the
+Linux redirect URI below. A device owner can also enter or replace the key in
+Plugin Settings; that override is saved in the WebView's local storage across
+app restarts. Changing it clears the previous login session.
 
-Other builds may provide a default key at build time:
+Set a key before the Artemis build, or use Plugin Settings on the device:
 
 ```sh
 # ui/.env (or pass on the command line for a single build)

@@ -24,7 +24,8 @@ npm run format     # prettier
 publishable key from your TONE3000 account in Plugin Settings and register
 `juce://juce.backend/index.html` as its redirect URI. The key identifies the
 OAuth client; each person signs in to their own TONE3000 account. Artemis
-builds intentionally leave the build-time key empty.
+builds embed the value from `ui/.env` when supplied. With no key, the first
+sign-in action opens the Plugin Settings key field directly.
 
 The dev server is useful for layout and TONE3000 browsing work, but anything
 that calls into the plugin (parameters, chain state, meters) needs the real

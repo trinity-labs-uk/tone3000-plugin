@@ -28,6 +28,8 @@ let pendingTimer: number | undefined;
  */
 export const IS_IOS =
   (window as unknown as { __T3K_PLATFORM__?: string }).__T3K_PLATFORM__ === 'ios';
+export const IS_ARTEMIS_KIOSK =
+  (window as unknown as { __T3K_PLATFORM__?: string }).__T3K_PLATFORM__ === 'artemis';
 
 // Stylesheet hook for the iOS-only rules in index.css (the document-scroll
 // fix and the vertical centering). Set here rather than in a component so it

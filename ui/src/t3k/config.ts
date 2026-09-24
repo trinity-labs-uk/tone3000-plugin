@@ -1,8 +1,8 @@
 // TONE3000 API configuration.
 //
 // The publishable key is an OAuth client ID, not a user's access token. Artemis
-// users can enter their own at runtime in Plugin Settings; upstream builds may
-// still provide VITE_T3K_PUBLISHABLE_KEY as a default.
+// users can enter their own at runtime in Plugin Settings. Builds can also
+// provide VITE_T3K_PUBLISHABLE_KEY as a default, including Artemis.
 //
 // T3K_API: API origin. Defaults to production; override with `VITE_T3K_API_DOMAIN`
 //   when pointing at a staging deployment. Trailing slashes are stripped because
@@ -22,6 +22,7 @@ export const T3K_API = (
 ).replace(/\/+$/, '');
 
 import { persistPublishableKey, resolvePublishableKey } from './publishableKey';
+import { redirectUriFromHref } from './redirectUri';
 
 export const BUILD_PUBLISHABLE_KEY =
   (import.meta.env.VITE_T3K_PUBLISHABLE_KEY as string | undefined) ?? '';
@@ -61,5 +62,5 @@ export const PREVIEW_PLAYERS_ENABLED =
 export const T3K_ARCHITECTURE: number | undefined = 2;
 
 export function getRedirectUri(): string {
-  return window.location.origin + window.location.pathname;
+  return redirectUriFromHref(window.location.href);
 }

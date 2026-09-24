@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNativeFunction } from '../hooks/useFunction';
 import { useChainState } from '../hooks/useChainState';
 import { ChainActionsProvider } from '../hooks/useChainActions';
@@ -10,7 +11,7 @@ import { useConnectionGate } from '../hooks/useConnectionGate';
 import { useToneSession } from '../hooks/useToneSession';
 import { useToneLoadFlow } from '../hooks/useToneLoadFlow';
 import { useUpdateNotice } from '../hooks/useUpdateNotice';
-import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT } from '../hooks/useUiScale';
+import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT, IS_ARTEMIS_KIOSK } from '../hooks/useUiScale';
 import { shouldRestoreToneBrowser } from '../hooks/useT3kSelect';
 import { CHAIN_SCROLL_STORAGE_KEY, ChainView, DETAIL_BLOCK_STORAGE_KEY } from './ChainView';
 import { Faceplate, PLATE_HEIGHT } from './Faceplate';
@@ -27,13 +28,15 @@ import { ConnectionModal } from './ConnectionModal';
 import { ToneBrowser } from './ToneBrowser';
 import { UpdateNotice } from './UpdateNotice';
 import Settings, { type SettingsTab } from './Settings';
-import { T3K_API } from '../t3k/config';
+import { ArtemisExitButton } from './ArtemisExitButton';
+import { getPublishableKey, T3K_API } from '../t3k/config';
+import { startWithPublishableKey } from '../t3k/startWithKey';
 import type { Model } from '../types/tone';
 import type { ToneBlock } from '../types/chain';
 
 export const Plugin: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
-  // Which tab Settings opens on; banner / gear land on System (setup first).
+  // Open the key field immediately when this device has no OAuth client ID.
   const settingsTabRef = useRef<SettingsTab>('system');
   const [showTuner, setShowTuner] = useState(false);
   // In-plugin tone browser takeover (streams of TONE3000 tones). Opened by
@@ -93,6 +96,7 @@ export const Plugin: React.FC = () => {
   const monoSum = stereoEnabled && !stereoOutput;
 
   const setTunerEnabled = useNativeFunction<boolean>('setTunerEnabled');
+  const quitStandalone = useNativeFunction<boolean>('quitStandalone');
   const copyToClipboard = useNativeFunction<boolean>('copyToClipboard');
   const setExtraContentHeight = useNativeFunction<boolean>('setExtraContentHeight');
   const pickLocalToneFile = useNativeFunction<{
@@ -105,7 +109,10 @@ export const Plugin: React.FC = () => {
     settingsTabRef.current = tab;
     setShowSettings(true);
   }, []);
-  const openDefaultSettings = useCallback(() => openSettings('system'), [openSettings]);
+  const openDefaultSettings = useCallback(
+    () => openSettings(getPublishableKey() ? 'system' : 'plugin'),
+    [openSettings]
+  );
 
   // App banner: one priority-picked banner over the audio device state
   // (standalone only). Both the banner (top) and the hint bar (bottom) are
@@ -242,23 +249,35 @@ export const Plugin: React.FC = () => {
     onAuthenticated: openToneBrowser,
   });
   const { client: t3kClient, ensureNativeAuth, startLoginFlow, startSelectFlow } = session;
+  const { clearOauthError } = session;
+
+  const withT3kKey = useCallback(
+    (start: () => void) =>
+      startWithPublishableKey(
+        getPublishableKey(),
+        clearOauthError,
+        () => openSettings('plugin'),
+        () => requireConnection(start)
+      ),
+    [clearOauthError, openSettings, requireConnection]
+  );
 
   const handleLogin = useCallback(
-    () => requireConnection(() => startLoginFlow()),
-    [requireConnection, startLoginFlow]
+    () => withT3kKey(() => startLoginFlow()),
+    [withT3kKey, startLoginFlow]
   );
   // Sign-in CTAs inside the browser (gated streams / Trending's discovery
   // footer) run the no-prompt login flow and return to this same browser,
   // never the full Select catalog.
   const handleBrowserSignIn = useCallback(
-    () => requireConnection(() => startLoginFlow({ openBrowser: true })),
-    [requireConnection, startLoginFlow]
+    () => withT3kKey(() => startLoginFlow({ openBrowser: true })),
+    [withT3kKey, startLoginFlow]
   );
   // Browse on TONE3000 leaves for the Select OAuth catalog, so it takes the
   // same gate as login.
   const handleBrowseTone3000 = useCallback(
-    () => requireConnection(() => startSelectFlow()),
-    [requireConnection, startSelectFlow]
+    () => withT3kKey(() => startSelectFlow()),
+    [withT3kKey, startSelectFlow]
   );
 
   const handleLogout = useCallback(async () => {
@@ -413,6 +432,9 @@ export const Plugin: React.FC = () => {
         color: '#ffffff',
       }}
     >
+      {standalone &&
+        IS_ARTEMIS_KIOSK &&
+        createPortal(<ArtemisExitButton onExit={() => void quitStandalone()} />, document.body)}
       {/* One app-wide toast pill, floating above the faceplate. Everything
           that raises toasts (preset save, share, auto measure) is inside. */}
       <ToastProvider bottom={PLATE_HEIGHT + (hintsVisible ? HINT_HEIGHT : 0) + 24}>

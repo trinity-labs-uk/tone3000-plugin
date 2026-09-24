@@ -667,6 +667,19 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
             return juce::var(juce::SystemStats::getUniqueDeviceID());
           }))
       .withNativeFunction(
+          // Leave the Artemis kiosk through JUCE's normal standalone shutdown,
+          // so plugin state is saved and Launchpad's exit watcher restores the
+          // launcher. Defer until after the WebView bridge callback completes.
+          "quitStandalone", guarded(0, false, [](const juce::Array<juce::var>&) {
+            if (!StandaloneAudioSettings::isAvailable())
+              return juce::var(false);
+            juce::MessageManager::callAsync([] {
+              if (auto* app = juce::JUCEApplicationBase::getInstance())
+                app->systemRequestedQuit();
+            });
+            return juce::var(true);
+          }))
+      .withNativeFunction(
           // Called by the main webview after the OAuth Select flow completes
           // (and again on every refresh). Stored on the processor so that
           // background model downloads can attach the Bearer header.
@@ -786,6 +799,8 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
       // offers. Set only here, so every desktop build's injected script is
       // byte-identical to before.
       .withUserScript(R"(window.__T3K_PLATFORM__ = 'ios';)")
+#elif JUCE_LINUX && T3K_ARTEMIS_KIOSK
+      .withUserScript(R"(window.__T3K_PLATFORM__ = 'artemis';)")
 #endif
       .withUserScript(R"(
             document.documentElement.style.backgroundColor = '#000000';
