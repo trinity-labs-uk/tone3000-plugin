@@ -35,6 +35,7 @@ import {
 } from './controls';
 import { SystemSettings } from './SystemSettings';
 import { MidiMapSettings } from './MidiMapSettings';
+import { getPublishableKey, getRedirectUri } from '../t3k/config';
 
 /** Inline LITE/FULL chrome matching the block-header toggle, for Settings
     copy that points at that control. Decorative only (not interactive). */
@@ -107,6 +108,7 @@ interface SettingsProps {
       currently in each slot. `chainRight` is null outside stereo. */
   chain: ChainItem[];
   chainRight: ChainItem[] | null;
+  onSavePublishableKey: (key: string) => Promise<void>;
 }
 
 // Oversampling rate choices. Values are the osFactor parameter's choice
@@ -187,8 +189,23 @@ export const Settings: React.FC<SettingsProps> = ({
   onMultiCoreChange,
   chain,
   chainRight,
+  onSavePublishableKey,
 }) => {
   const [tab, setTab] = useState<SettingsTab>(standalone ? initialTab : 'plugin');
+  const [keyDraft, setKeyDraft] = useState(() => getPublishableKey());
+  const [keyError, setKeyError] = useState<string | null>(null);
+  const [keySaving, setKeySaving] = useState(false);
+  const saveKey = useCallback(async () => {
+    setKeySaving(true);
+    setKeyError(null);
+    try {
+      await onSavePublishableKey(keyDraft);
+    } catch (error) {
+      setKeyError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setKeySaving(false);
+    }
+  }, [keyDraft, onSavePublishableKey]);
 
   const hintsEnabled = useHintsEnabled();
   const blockNormalizeControlEnabled = useBlockNormalizeControlEnabled();
@@ -291,6 +308,30 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const pluginTab = (
     <>
+      <section style={{ marginBottom: `${SECTION_GAP}rem` }}>
+        <span style={sectionLabelStyle}>TONE3000 account connection</span>
+        <p style={descriptionStyle}>
+          Create a publishable key in your TONE3000 account under Settings → API Keys.
+          Register <code>{getRedirectUri()}</code> as its redirect URI, then enter the key here.
+          The key identifies this device to OAuth; sign-in still uses your own account.
+        </p>
+        <div style={{ display: 'flex', gap: '10rem', alignItems: 'center' }}>
+          <input
+            aria-label="TONE3000 publishable key"
+            value={keyDraft}
+            onChange={(event) => setKeyDraft(event.target.value)}
+            placeholder="t3k_pub_..."
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            style={{ ...outlinedFieldStyle, flex: 1, minWidth: 0 }}
+          />
+          <button type="button" disabled={keySaving} onClick={() => void saveKey()} style={ctaButtonStyle}>
+            Save
+          </button>
+        </div>
+        {keyError && <p role="alert" style={{ ...descriptionStyle, color: '#ff9090' }}>{keyError}</p>}
+      </section>
       <ToggleRow
         label="Info Bar"
         description="Strip under the faceplate with hover tips and CPU load."

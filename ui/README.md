@@ -20,8 +20,11 @@ npm run lint       # eslint
 npm run format     # prettier
 ```
 
-Set `VITE_T3K_PUBLISHABLE_KEY` in `ui/.env` before building or running the
-dev server (see the root README for redirect URI setup).
+`VITE_T3K_PUBLISHABLE_KEY` is optional. Without it, enter a `t3k_pub_…`
+publishable key from your TONE3000 account in Plugin Settings and register
+`juce://juce.backend/index.html` as its redirect URI. The key identifies the
+OAuth client; each person signs in to their own TONE3000 account. Artemis
+builds intentionally leave the build-time key empty.
 
 The dev server is useful for layout and TONE3000 browsing work, but anything
 that calls into the plugin (parameters, chain state, meters) needs the real

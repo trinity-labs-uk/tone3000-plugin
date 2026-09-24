@@ -95,8 +95,15 @@ needs that postinstall to download the esbuild binary.
 
 #### TONE3000 publishable key and redirect URIs
 
-The webview reads your TONE3000 publishable key at build time. Set it before
-the first build (or before running the dev server):
+The publishable key is an OAuth client ID. It does not sign users into the
+key owner's account: each person signs into their own TONE3000 account.
+On Artemis, enter a key in Plugin Settings on the device after installation.
+The Artemis bundle deliberately contains no key. Create one in your own
+TONE3000 account under Settings > API Keys and register the Linux redirect
+URI below. The key is saved in the WebView's local storage, so it persists
+across app restarts. Changing it clears the previous login session.
+
+Other builds may provide a default key at build time:
 
 ```sh
 # ui/.env (or pass on the command line for a single build)

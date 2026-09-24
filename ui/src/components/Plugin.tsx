@@ -593,6 +593,7 @@ export const Plugin: React.FC = () => {
             onMultiCoreChange={actions.setMultiCore}
             chain={chain}
             chainRight={chainRight}
+            onSavePublishableKey={session.configurePublishableKey}
           />
         )}
 

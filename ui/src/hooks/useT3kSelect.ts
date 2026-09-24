@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  PUBLISHABLE_KEY,
+  getPublishableKey,
   T3K_ARCHITECTURE,
   PREVIEW_PLAYERS_ENABLED,
   getRedirectUri,
@@ -119,13 +119,14 @@ export const useT3kSelect = ({
   onAccessTokenUpdated,
   onAuthenticated,
 }: UseT3kSelectOptions) => {
+  const publishableKey = getPublishableKey();
   const tokenListenerRef = useRef(onAccessTokenUpdated);
   tokenListenerRef.current = onAccessTokenUpdated;
   const authenticatedListenerRef = useRef(onAuthenticated);
   authenticatedListenerRef.current = onAuthenticated;
 
   const client = useMemo(() => {
-    const c = new T3KClient(PUBLISHABLE_KEY, () => {
+    const c = new T3KClient(publishableKey, () => {
       // If the refresh token is rejected we lose access; the user has to
       // start from the + again, which relaunches the login flow. Nothing to
       // do automatically here.
@@ -135,7 +136,7 @@ export const useT3kSelect = ({
     // so the native-side Bearer token always matches the live access token.
     c.setTokenListener((tokens) => tokenListenerRef.current?.(tokens.access_token));
     return c;
-  }, []);
+  }, [publishableKey]);
 
   const fetchToneAndModels = useCallback(
     async (toneId: string | number) => {
@@ -199,7 +200,7 @@ export const useT3kSelect = ({
     if (!detectInitialCallback()) return;
     processedCallbackRef.current = true;
 
-    handleOAuthCallback(PUBLISHABLE_KEY, getRedirectUri())
+    handleOAuthCallback(publishableKey, getRedirectUri())
       .then(async (result) => {
         // Strip the OAuth params so a refresh doesn't try to re-redeem the code.
         const cleaned = new URL(window.location.href);
@@ -240,17 +241,17 @@ export const useT3kSelect = ({
         setOauthError(err instanceof Error ? err.message : String(err));
         setOauthPhase('error');
       });
-  }, [client, fetchToneAndModels, onToneSelected]);
+  }, [client, fetchToneAndModels, onToneSelected, publishableKey]);
 
   const requireKey = useCallback((): boolean => {
-    if (PUBLISHABLE_KEY) return true;
+    if (publishableKey) return true;
     const msg =
-      'TONE3000 publishable key not configured. Set VITE_T3K_PUBLISHABLE_KEY at build time.';
+      'TONE3000 needs a publishable key. Open Settings → Plugin Settings to enter one from your account.';
     console.error(msg);
     setOauthError(msg);
     setOauthPhase('error');
     return false;
-  }, []);
+  }, [publishableKey]);
 
   /**
    * Kick off (or restart) the Select flow by navigating the main webview to
@@ -267,7 +268,7 @@ export const useT3kSelect = ({
     sessionStorage.setItem(LOGIN_INTENT_KEY, 'browse');
     // Dim the current screen immediately; the redirect takes a beat.
     setOauthPhase('leaving');
-    startSelectFlowRedirect(PUBLISHABLE_KEY, getRedirectUri(), {
+    startSelectFlowRedirect(publishableKey, getRedirectUri(), {
       menubar: true,
       architecture: T3K_ARCHITECTURE,
       preview: PREVIEW_PLAYERS_ENABLED,
@@ -276,7 +277,7 @@ export const useT3kSelect = ({
       setOauthError(err instanceof Error ? err.message : String(err));
       setOauthPhase('error');
     });
-  }, [requireKey]);
+  }, [publishableKey, requireKey]);
 
   /**
    * Kick off the no-prompt login flow: sign-in only, no tone browsing on
@@ -293,13 +294,13 @@ export const useT3kSelect = ({
       else sessionStorage.removeItem(LOGIN_INTENT_KEY);
       // Dim the current screen immediately; the redirect takes a beat.
       setOauthPhase('leaving');
-      startLoginFlowRedirect(PUBLISHABLE_KEY, getRedirectUri(), { menubar: true }).catch((err) => {
+      startLoginFlowRedirect(publishableKey, getRedirectUri(), { menubar: true }).catch((err) => {
         console.error('Failed to start TONE3000 login flow', err);
         setOauthError(err instanceof Error ? err.message : String(err));
         setOauthPhase('error');
       });
     },
-    [requireKey]
+    [publishableKey, requireKey]
   );
 
   /**

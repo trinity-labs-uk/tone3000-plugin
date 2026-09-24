@@ -501,6 +501,65 @@ if (EXISTS "${_juce_standalone_cpp}")
     endif()
 endif()
 
+# The Artemis standalone owns the full display. JUCE's stock standalone
+# calls kiosk mode before showing the window and retains a title bar on Linux.
+# Patch the standalone entry point while configuring, as with the existing
+# JUCE fixes above. This stays scoped to the Artemis build flag.
+if (T3K_ARTEMIS_KIOSK AND EXISTS "${_juce_standalone_cpp}")
+    file(READ "${_juce_standalone_cpp}" _juce_kiosk_src)
+    if (NOT _juce_kiosk_src MATCHES "T3K_ARTEMIS_KIOSK_WINDOW")
+        if (_juce_kiosk_src MATCHES "\r\n")
+            set(_juce_nl "\r\n")
+        else()
+            set(_juce_nl "\n")
+        endif()
+        set(_kiosk_create_old [=[        return new StandaloneFilterWindow (getApplicationName(),
+                                           LookAndFeel::getDefaultLookAndFeel().findColour (ResizableWindow::backgroundColourId),
+                                           createPluginHolder());]=])
+        set(_kiosk_create_new [=[        auto* window = new StandaloneFilterWindow (getApplicationName(),
+                                                   LookAndFeel::getDefaultLookAndFeel().findColour (ResizableWindow::backgroundColourId),
+                                                   createPluginHolder());
+       #if T3K_ARTEMIS_KIOSK && JUCE_LINUX
+        // T3K_ARTEMIS_KIOSK_WINDOW: remove decorations before mapping.
+        window->setUsingNativeTitleBar (false);
+        window->setTitleBarHeight (0);
+        window->setResizable (false, false);
+       #endif
+        return window;]=])
+        set(_kiosk_init_old [=[        if (mainWindow != nullptr)
+        {
+           #if JUCE_STANDALONE_FILTER_WINDOW_USE_KIOSK_MODE
+            Desktop::getInstance().setKioskModeComponent (mainWindow.get(), false);
+           #endif
+
+            mainWindow->setVisible (true);]=])
+        set(_kiosk_init_new [=[        if (mainWindow != nullptr)
+        {
+           #if T3K_ARTEMIS_KIOSK && JUCE_LINUX
+            mainWindow->setVisible (true);
+            mainWindow->setFullScreen (true);
+            Desktop::getInstance().setKioskModeComponent (mainWindow.get(), false);
+           #elif JUCE_STANDALONE_FILTER_WINDOW_USE_KIOSK_MODE
+            Desktop::getInstance().setKioskModeComponent (mainWindow.get(), false);
+            mainWindow->setVisible (true);
+           #else
+            mainWindow->setVisible (true);
+           #endif
+]=])
+        foreach(_part IN ITEMS _kiosk_create_old _kiosk_create_new _kiosk_init_old _kiosk_init_new)
+            string(REPLACE "\n" "${_juce_nl}" ${_part} "${${_part}}")
+        endforeach()
+        string(FIND "${_juce_kiosk_src}" "${_kiosk_create_old}" _create_anchor)
+        string(FIND "${_juce_kiosk_src}" "${_kiosk_init_old}" _init_anchor)
+        if (_create_anchor EQUAL -1 OR _init_anchor EQUAL -1)
+            message(FATAL_ERROR "T3K_ARTEMIS_KIOSK_WINDOW: JUCE standalone anchors changed")
+        endif()
+        string(REPLACE "${_kiosk_create_old}" "${_kiosk_create_new}" _juce_kiosk_src "${_juce_kiosk_src}")
+        string(REPLACE "${_kiosk_init_old}" "${_kiosk_init_new}" _juce_kiosk_src "${_juce_kiosk_src}")
+        file(WRITE "${_juce_standalone_cpp}" "${_juce_kiosk_src}")
+    endif()
+endif()
+
 # T3K_AUDIO_DEFAULT_SETUP: fix a JUCE 9 regression in
 # AudioDeviceManager::setAudioDeviceSetup. JUCE 8 treated an unset (0) sample
 # rate / buffer size as "use the device defaults" (chooseBestSampleRate /

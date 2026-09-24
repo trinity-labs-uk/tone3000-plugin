@@ -1,9 +1,8 @@
 // TONE3000 API configuration.
 //
-// PUBLISHABLE_KEY: your `t3k_pub_…` key from Settings → API Keys on tone3000.com.
-//   Bake one in at build time via `VITE_T3K_PUBLISHABLE_KEY`. Required for the
-//   Select flow to work; tone3000.com rejects authorize requests without a
-//   recognised client_id.
+// The publishable key is an OAuth client ID, not a user's access token. Artemis
+// users can enter their own at runtime in Plugin Settings; upstream builds may
+// still provide VITE_T3K_PUBLISHABLE_KEY as a default.
 //
 // T3K_API: API origin. Defaults to production; override with `VITE_T3K_API_DOMAIN`
 //   when pointing at a staging deployment. Trailing slashes are stripped because
@@ -22,8 +21,22 @@ export const T3K_API = (
   (import.meta.env.VITE_T3K_API_DOMAIN as string | undefined) ?? 'https://www.tone3000.com'
 ).replace(/\/+$/, '');
 
-export const PUBLISHABLE_KEY =
+import { persistPublishableKey, resolvePublishableKey } from './publishableKey';
+
+export const BUILD_PUBLISHABLE_KEY =
   (import.meta.env.VITE_T3K_PUBLISHABLE_KEY as string | undefined) ?? '';
+
+export function getPublishableKey(): string {
+  try {
+    return resolvePublishableKey(BUILD_PUBLISHABLE_KEY, localStorage);
+  } catch {
+    return BUILD_PUBLISHABLE_KEY;
+  }
+}
+
+export function savePublishableKey(value: string): string {
+  return persistPublishableKey(value, localStorage);
+}
 
 // UPDATE_NOTICE_ENABLED: startup update check (see useUpdateNotice). Off by
 //   default so forks never ping tone3000.com; enable with

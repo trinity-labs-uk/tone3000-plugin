@@ -40,6 +40,7 @@ option(HEADLESS "Disable GUI (headless/embedded build)" OFF)
 option(BUILD_AAX "Build AAX (Avid) format" ON)
 option(BUILD_LV2 "Build LV2 format (native Linux plugin standard)" ON)
 option(BUILD_CLAP "Build CLAP format (via clap-juce-extensions)" ON)
+option(T3K_ARTEMIS_KIOSK "Use the Artemis full-screen Linux standalone layout" OFF)
 set(_plugin_formats "VST3") # Default plugin format
 
 # iOS has no desktop plugin host, so none of the plugin formats apply: VST3,
@@ -257,6 +258,15 @@ juce_add_plugin(${PROJECT_NAME}
     ${_t3k_ios_args}
     ICON_BIG "${_app_icon}"
 )
+
+if (T3K_ARTEMIS_KIOSK)
+    if (NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR HEADLESS)
+        message(FATAL_ERROR "T3K_ARTEMIS_KIOSK requires a Linux GUI standalone build")
+    endif()
+    target_compile_definitions(${PROJECT_NAME} PUBLIC T3K_ARTEMIS_KIOSK=1)
+    target_compile_definitions(${PROJECT_NAME}_Standalone PRIVATE
+        JUCE_STANDALONE_FILTER_WINDOW_USE_KIOSK_MODE=1)
+endif()
 
 # What App Store Connect checks on upload. Nothing here changes how the app
 # behaves; without it the upload is rejected or the icon goes missing.
@@ -627,4 +637,4 @@ if (NOT HEADLESS AND BUILD_CLAP)
 endif()
 
 # Visual Studio Only
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/..) 
+source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR}/..)

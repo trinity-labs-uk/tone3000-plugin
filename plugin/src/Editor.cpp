@@ -1,53 +1,65 @@
 #include "Editor.h"
 #include "Processor.h"
 
+namespace {
+bool isArtemisKioskStandalone() {
+#if JUCE_LINUX && T3K_ARTEMIS_KIOSK
+  return StandaloneAudioSettings::isAvailable();
+#else
+  return false;
+#endif
+}
+}
+
 void TONE3000Editor::parentHierarchyChanged() {
   // iOS runs the standalone window in kiosk mode: it is already exactly the
   // screen, has no title bar to flip on and cannot be resized, so the whole
   // size-preserving dance below has nothing to correct.
 #if ! JUCE_IOS
-  if (auto* window = dynamic_cast<juce::DocumentWindow*>(getTopLevelComponent())) {
-    // Snapshot our own size before flipping the title bar style: JUCE
-    // immediately relayouts the title-bar/content split within the window's
-    // current bounds, which can stretch or shrink us before our own
-    // aspect-ratio constrainer catches up. A hardcoded title-bar-height
-    // guess doesn't hold on every OS/version and can leave us a few px off.
-    // Re-asserting our exact pre-toggle size instead lets JUCE's own resize
-    // listener (StandaloneFilterWindow::MainContentComponent, which already
-    // measures the real native frame) grow the *window* to exactly contain
-    // us again, with no guesswork.
-    const int w = getWidth();
-    const int h = getHeight();
-    // Whatever resize this dance causes along the way is us correcting
-    // ourselves, not the user choosing a size; don't let it clobber the
-    // persisted scale. Cleared next tick so a deferred cascade from the
-    // relayout is covered too, not just a same-tick one.
-    restoringSize = true;
-    window->setUsingNativeTitleBar(true);
-    setSize(w, h);
-    juce::Component::SafePointer<TONE3000Editor> self(this);
-    juce::MessageManager::callAsync([self] {
-      if (self != nullptr)
-        self->restoringSize = false;
-    });
+  if (!isArtemisKioskStandalone()) {
+    if (auto* window = dynamic_cast<juce::DocumentWindow*>(getTopLevelComponent())) {
+      // Snapshot our own size before flipping the title bar style: JUCE
+      // immediately relayouts the title-bar/content split within the window's
+      // current bounds, which can stretch or shrink us before our own
+      // aspect-ratio constrainer catches up. A hardcoded title-bar-height
+      // guess doesn't hold on every OS/version and can leave us a few px off.
+      // Re-asserting our exact pre-toggle size instead lets JUCE's own resize
+      // listener (StandaloneFilterWindow::MainContentComponent, which already
+      // measures the real native frame) grow the *window* to exactly contain
+      // us again, with no guesswork.
+      const int w = getWidth();
+      const int h = getHeight();
+      // Whatever resize this dance causes along the way is us correcting
+      // ourselves, not the user choosing a size; don't let it clobber the
+      // persisted scale. Cleared next tick so a deferred cascade from the
+      // relayout is covered too, not just a same-tick one.
+      restoringSize = true;
+      window->setUsingNativeTitleBar(true);
+      setSize(w, h);
+      juce::Component::SafePointer<TONE3000Editor> self(this);
+      juce::MessageManager::callAsync([self] {
+        if (self != nullptr)
+          self->restoringSize = false;
+      });
 
 #if JUCE_WINDOWS
-    // Native window resizes can leave white dead space around the UI: JUCE 9's
-    // default Direct2D backend validates WM_PAINT regions immediately but
-    // defers the actual draw to the next vblank, so a frame drag can validate
-    // regions that never get painted at the final size (JUCE forum: "Resizing
-    // is strangely broken on Windows"; the Jan 2026 isSizing() fix was
-    // superseded and 9.0.1 still defers). This window only paints a black
-    // backdrop behind the WebView2 child, which does its own rendering, so
-    // the synchronous software renderer costs nothing and cannot present
-    // stale bounds. Engine 0 = "Software Renderer" (GDI), 1 = "Direct2D";
-    // no-op when already selected, and JUCE re-applies the choice itself when
-    // the peer is recreated. On construction-time passes the window isn't on
-    // the desktop yet (no peer); the post-creation hierarchy-changed pass
-    // lands here again with the peer in place.
-    if (auto* peer = window->getPeer())
-      peer->setCurrentRenderingEngine(0);
+      // Native window resizes can leave white dead space around the UI: JUCE 9's
+      // default Direct2D backend validates WM_PAINT regions immediately but
+      // defers the actual draw to the next vblank, so a frame drag can validate
+      // regions that never get painted at the final size (JUCE forum: "Resizing
+      // is strangely broken on Windows"; the Jan 2026 isSizing() fix was
+      // superseded and 9.0.1 still defers). This window only paints a black
+      // backdrop behind the WebView2 child, which does its own rendering, so
+      // the synchronous software renderer costs nothing and cannot present
+      // stale bounds. Engine 0 = "Software Renderer" (GDI), 1 = "Direct2D";
+      // no-op when already selected, and JUCE re-applies the choice itself when
+      // the peer is recreated. On construction-time passes the window isn't on
+      // the desktop yet (no peer); the post-creation hierarchy-changed pass
+      // lands here again with the peer in place.
+      if (auto* peer = window->getPeer())
+        peer->setCurrentRenderingEngine(0);
 #endif
+    }
   }
 #endif  // ! JUCE_IOS
 
@@ -140,22 +152,31 @@ TONE3000Editor::TONE3000Editor(TONE3000Processor& p) : AudioProcessorEditor(&p),
   setSize(kWidth, totalHeight());
   setResizable(false, false);
 #else
-  setResizable(true, true);
-  // Pre-size for the persistent chrome the UI renders on first paint (the
-  // hint bar preference survives sessions). Without this the window opens at
-  // the bare design height, the first React commit overflows it, and the
-  // post-paint height report grows the window a beat later: a visible
-  // two-step launch jank. The banner is excluded (it's genuinely dynamic and
-  // animates in when its state resolves). Assigned before the scale is read
-  // so maxStartScale() below fits the height the window will actually open
-  // with.
-  extraContentHeight = juce::jlimit(0, 160, processor.editorExtraHeight.load());
-  // Read the persisted scale before touching the constraints: installing the
-  // resize limits already snaps the editor to the 1x minimum, and resized()
-  // writes that back through processor.editorScale.
-  const double savedScale = juce::jlimit(1.0, maxStartScale(), processor.editorScale.load());
-  updateResizeConstraints();
-  applyScaledSize(savedScale);
+  if (isArtemisKioskStandalone()) {
+    // The window takes the display's actual bounds (1560x720 on Artemis).
+    // Do not install the desktop 1024:578 aspect constrainer or resize it when chrome appears;
+    // the web UI fits its design box inside the live viewport instead.
+    extraContentHeight = juce::jlimit(0, 160, processor.editorExtraHeight.load());
+    setSize(kWidth, totalHeight());
+    setResizable(false, false);
+  } else {
+    setResizable(true, true);
+    // Pre-size for the persistent chrome the UI renders on first paint (the
+    // hint bar preference survives sessions). Without this the window opens at
+    // the bare design height, the first React commit overflows it, and the
+    // post-paint height report grows the window a beat later: a visible
+    // two-step launch jank. The banner is excluded (it's genuinely dynamic and
+    // animates in when its state resolves). Assigned before the scale is read
+    // so maxStartScale() below fits the height the window will actually open
+    // with.
+    extraContentHeight = juce::jlimit(0, 160, processor.editorExtraHeight.load());
+    // Read the persisted scale before touching the constraints: installing the
+    // resize limits already snaps the editor to the 1x minimum, and resized()
+    // writes that back through processor.editorScale.
+    const double savedScale = juce::jlimit(1.0, maxStartScale(), processor.editorScale.load());
+    updateResizeConstraints();
+    applyScaledSize(savedScale);
+  }
 #endif  // JUCE_IOS
 }
 
@@ -215,6 +236,11 @@ void TONE3000Editor::setExtraContentHeight(int pixels, int persistentPixels) {
   processor.editorExtraHeight.store(juce::jlimit(0, 160, persistentPixels));
   extraContentHeight = clamped;
 #else
+  if (isArtemisKioskStandalone()) {
+    processor.editorExtraHeight.store(juce::jlimit(0, 160, persistentPixels));
+    extraContentHeight = clamped;
+    return;
+  }
   // Remember the session-persistent portion (the hint bar; the banner is
   // dynamic) even when the window size itself doesn't change, so the next
   // editor opens pre-sized for the chrome the UI will render on first paint.
@@ -391,7 +417,7 @@ void TONE3000Editor::resized() {
   // so there is nothing to persist and currentScale() would just record the
   // screen aspect.
 #if ! JUCE_IOS
-  if (!restoringSize)
+  if (!restoringSize && !isArtemisKioskStandalone())
     processor.editorScale.store(currentScale());
 #endif
 }

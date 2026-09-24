@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNativeFunction } from './useFunction';
 import { useT3kSelect } from './useT3kSelect';
-import { T3K_ARCHITECTURE } from '../t3k/config';
+import { T3K_ARCHITECTURE, savePublishableKey } from '../t3k/config';
+import { normalizePublishableKey } from '../t3k/publishableKey';
 import type { Model, Tone, User } from '../types/tone';
 
 // Signed-in identity, cached so the header avatar/name paint instantly on
@@ -132,6 +133,17 @@ export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessi
     await Promise.all([pushAccessTokenToNative(''), clearAuthCookies()]);
   }, [clearAuthCookies, client, pushAccessTokenToNative]);
 
+  const configurePublishableKey = useCallback(async (value: string) => {
+    const key = normalizePublishableKey(value);
+    // A previous session belongs to the old OAuth client ID. Clear its
+    // tokens and webview cookies before rebuilding the client on reload.
+    // A bridge failure must not prevent a device owner from configuring the
+    // client ID. The old token is already cleared synchronously by logout.
+    await logout().catch((error) => console.warn('Could not clear every TONE3000 session store:', error));
+    savePublishableKey(key);
+    window.location.reload();
+  }, [logout]);
+
   /**
    * Fetch a tone's full model catalog (tones max out at 300 models, so one
    * call covers it). Backs the detail card's model picker; the persisted
@@ -174,5 +186,6 @@ export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessi
     getTone,
     setToneFavorite,
     logout,
+    configurePublishableKey,
   };
 }

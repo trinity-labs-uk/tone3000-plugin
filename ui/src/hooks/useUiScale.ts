@@ -1,4 +1,5 @@
 import { useLayoutEffect } from 'react';
+import { fitDesignScale } from './uiScaleMath';
 
 /** Design-space width of the plugin UI. Native sizes the window to this
  * times the user's scale factor (see TONE3000Editor in plugin/include). */
@@ -52,7 +53,7 @@ if (IS_COARSE_POINTER && typeof document !== 'undefined')
  * by the scale, so it must never be 0. */
 const fitScale = (designHeight: number): number => {
   const el = document.documentElement;
-  return Math.max(0.05, Math.min(el.clientWidth / DESIGN_WIDTH, el.clientHeight / designHeight));
+  return fitDesignScale(el.clientWidth, el.clientHeight, DESIGN_WIDTH, designHeight);
 };
 
 /** Current UI scale (real viewport px per design px): the design box fitted
