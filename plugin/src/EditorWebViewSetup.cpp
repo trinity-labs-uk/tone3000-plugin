@@ -23,6 +23,26 @@ double coerceDouble(const juce::var& v) {
   return v.toString().getDoubleValue();
 }
 
+#if JUCE_LINUX && T3K_ARTEMIS_KIOSK
+juce::String artemisKeyboardUserScript() {
+  // JUCE injects user scripts into every top-level WebView document at
+  // document start, including the remote OAuth page. Embed the stylesheet in
+  // the script because remote pages cannot load the juce:// asset URL. Direct
+  // symbols make the native build fail if either asset was omitted.
+  const juce::String stylesheet =
+      juce::String::fromUTF8(BinaryData::artemisosk_css, BinaryData::artemisosk_cssSize);
+  const juce::String javascript =
+      juce::String::fromUTF8(BinaryData::artemisosk_js, BinaryData::artemisosk_jsSize);
+  return "(function(){var css=" +
+         juce::JSON::toString(juce::var(stylesheet)) +
+         ";function install(){var style=document.createElement('style');"
+         "style.id='tone3000-onscreen-keyboard-style';style.textContent=css;"
+         "document.documentElement.appendChild(style);}"
+         "if(document.documentElement)install();"
+         "else document.addEventListener('DOMContentLoaded',install,{once:true});})();\n" + javascript;
+}
+#endif
+
 /**
  * Uniform native-function shape: validates arity once, and a malformed call
  * resolves to `fallback` instead of each handler hand-rolling the check. The
@@ -876,7 +896,13 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
             // engine with every load; the boot watchdog in index.html only
             // logs it when the UI fails to boot.
             console.log("Main WebView: JUCE C++ Backend loaded | " + navigator.userAgent);
-          )");
+          )"
+#if JUCE_LINUX && T3K_ARTEMIS_KIOSK
+      )
+      .withUserScript(artemisKeyboardUserScript());
+#else
+      );
+#endif
 }
 
 }  // namespace EditorWebViewSetup

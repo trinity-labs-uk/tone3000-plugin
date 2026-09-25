@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:artemis-osk": "vite build --config vite.artemis-osk.config.ts",
     "preview": "vite preview",
     "lint": "eslint src test",
     "test": "node test/run.mjs",
@@ -13,6 +14,7 @@
     "format:check": "prettier --check \"{src,test}/**/*.{ts,tsx,css}\""
   },
   "dependencies": {
+    "@artemis-os/on-screen-keyboard": "file:../../onscreen-keyboard",
     "@dnd-kit/helpers": "^0.5.0",
     "@dnd-kit/react": "^0.5.0",
     "@fontsource/roboto-mono": "^5.3.0",
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.30.1",
+    "@types/jsdom": "^21.1.7",
     "@types/node": "^22.10.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
@@ -33,6 +36,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "jsdom": "^26.1.0",
     "prettier": "^3.4.2",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
