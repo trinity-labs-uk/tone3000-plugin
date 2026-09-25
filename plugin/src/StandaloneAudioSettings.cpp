@@ -121,9 +121,13 @@ StandaloneAudioSettings::StandaloneAudioSettings(TONE3000Processor& p,
   // IosAudioRoute.h). No-op off iOS.
   applyRawInputMode();
   ensureInitialPolicies();
+  logXruns();
+  startTimer(5000);
 }
 
 StandaloneAudioSettings::~StandaloneAudioSettings() {
+  stopTimer();
+  logXruns(true);
   setInputMetering(false);
   if (auto* dm = deviceManager())
     dm->removeChangeListener(this);
@@ -131,6 +135,42 @@ StandaloneAudioSettings::~StandaloneAudioSettings() {
 
 bool StandaloneAudioSettings::isAvailable() {
   return holder() != nullptr;
+}
+
+void StandaloneAudioSettings::timerCallback() {
+  logXruns();
+}
+
+void StandaloneAudioSettings::logXruns(bool closing) {
+  auto* dm = deviceManager();
+  auto* device = dm != nullptr ? dm->getCurrentAudioDevice() : nullptr;
+  if (device == nullptr || !device->isOpen()) {
+    xrunLogTracker.reset();
+    return;
+  }
+
+  const auto nowMs = static_cast<std::uint64_t>(juce::Time::getMillisecondCounterHiRes());
+  const auto report = xrunLogTracker.observe(device, device->getXRunCount(),
+                                             dm->getXRunCount(), nowMs, closing);
+  if (!report)
+    return;
+
+  const char* reason = report->reason == XRunLogTracker::Reason::baseline ? "baseline" :
+                       report->reason == XRunLogTracker::Reason::increase ? "increase" :
+                       report->reason == XRunLogTracker::Reason::heartbeat ? "heartbeat" :
+                       "summary";
+  juce::Logger::writeToLog(
+      "[Audio XRUN] reason=" + juce::String(reason) +
+      " device_total=" + (report->deviceTotal >= 0 ? juce::String(report->deviceTotal) :
+                           juce::String("unavailable")) +
+      " device_delta=" + juce::String(report->deviceDelta) +
+      " juce_total=" + juce::String(report->managerTotal) +
+      " juce_delta=" + juce::String(report->managerDelta) +
+      " interval_s=" + juce::String(report->intervalMs / 1000.0, 1) +
+      " backend=" + device->getTypeName() +
+      " device=" + device->getName() +
+      " sample_rate=" + juce::String(device->getCurrentSampleRate(), 0) +
+      " buffer_frames=" + juce::String(device->getCurrentBufferSizeSamples()));
 }
 
 void StandaloneAudioSettings::changeListenerCallback(juce::ChangeBroadcaster*) {

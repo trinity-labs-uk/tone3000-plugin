@@ -37,6 +37,7 @@ target_sources(DspTests PRIVATE
     src/tone_refresh_tests.cpp
     src/tuner_tests.cpp
     src/wav_repair_tests.cpp
+    src/xrun_log_tests.cpp
     src/worker_pool_tests.cpp
     # Compiled straight from the plugin tree so the tests exercise the real
     # processor, not a copy. GUI sources are excluded; HEADLESS=1 below

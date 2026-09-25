@@ -1,5 +1,7 @@
 #pragma once
 
+#include "XRunLogTracker.h"
+
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_core/juce_core.h>
 
@@ -40,7 +42,7 @@ class TONE3000Processor;
  * In hosted builds (or when the standalone holder doesn't exist) none of this
  * is instantiated; construct only when isAvailable() returns true.
  */
-class StandaloneAudioSettings : private juce::ChangeListener {
+class StandaloneAudioSettings : private juce::ChangeListener, private juce::Timer {
 public:
   /** @param onDeviceStateChanged Fired (message thread) whenever the device
       manager broadcasts a change; the editor forwards it to the WebView as
@@ -116,6 +118,8 @@ private:
   };
 
   void changeListenerCallback(juce::ChangeBroadcaster*) override;
+  void timerCallback() override;
+  void logXruns(bool closing = false);
 
   // One-time policy pass (waits for the device manager to land a device;
   // startup can be deferred behind the mic-permission prompt): fresh installs
@@ -163,6 +167,7 @@ private:
   bool initialPoliciesDone = false;
   bool audioInitMarkedClean = false;
   bool micRequestIssued = false;
+  XRunLogTracker xrunLogTracker;
   // Device pair the monitoring policy last auto-applied to. Monitoring is
   // re-evaluated only when the input/output pair changes, so a manual Hear
   // Yourself toggle sticks for the current device (see applyMonitoringPolicy).
