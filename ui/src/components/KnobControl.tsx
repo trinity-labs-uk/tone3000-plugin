@@ -6,7 +6,7 @@ import type { KnobScale } from './knobScale';
 import { percentScale } from './knobScale';
 import { helpProps, pinHelp, unpinHelp } from './helpText';
 import { GRAY, KNOB_LABEL_GAP, SURFACE_RAISED, WHITE } from './theme';
-import { getUiScale, rem } from '../hooks/useUiScale';
+import { getUiScale, IS_ARTEMIS_KIOSK, rem } from '../hooks/useUiScale';
 
 /**
  * Knob interaction conventions (matching typical plugin UX):
@@ -24,8 +24,8 @@ import { getUiScale, rem } from '../hooks/useUiScale';
  * On a touch screen the two mouse-only gestures are replaced rather than
  * dropped:
  * - Double tap resets to the default (there is no Alt key). Detected from
- *   the pointer stream, not from `dblclick`, which WKWebView ties to its
- *   own double-tap handling.
+ *   the touch/pointer stream, not from `dblclick`, which WKWebView ties to
+ *   its own double-tap handling.
  * - Tapping the label under the knob opens the type-in editor (double tap
  *   is taken by the reset).
  * Both key off the gesture's own pointerType, so a mouse keeps desktop
@@ -122,6 +122,8 @@ export const KnobControl: React.FC<KnobControlProps> = ({
   // The pointerup listener lives on `document` (releases can land anywhere),
   // so it must ignore releases that don't belong to this knob's drag.
   const draggingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
+  const activeTouchIdRef = useRef<number | null>(null);
   // Accumulated drag value, deliberately UN-snapped. react-knob-headless
   // applies each event as `props.value + thisDelta`, so any native echo (or
   // a second move before React re-renders) drops prior deltas: the knob
@@ -222,7 +224,7 @@ export const KnobControl: React.FC<KnobControlProps> = ({
     const handleShift = (e: KeyboardEvent) => {
       if (e.key === 'Shift') setFineMode(e.type === 'keydown');
     };
-    const handleDragPointerMove = (e: PointerEvent) => {
+    const applyDragMove = (x: number, y: number, shift: boolean) => {
       if (!draggingRef.current) return;
       // A press that travels is a drag, not the first half of a double tap.
       // Without this, dragging a knob and then tapping it inside the
@@ -231,23 +233,26 @@ export const KnobControl: React.FC<KnobControlProps> = ({
       const origin = pressOriginRef.current;
       if (
         origin !== null &&
-        (Math.abs(e.clientX - origin.x) > DOUBLE_TAP_SLOP_PX ||
-          Math.abs(e.clientY - origin.y) > DOUBLE_TAP_SLOP_PX)
+        (Math.abs(x - origin.x) > DOUBLE_TAP_SLOP_PX || Math.abs(y - origin.y) > DOUBLE_TAP_SLOP_PX)
       ) {
         pressOriginRef.current = null;
         lastTapRef.current = null;
       }
-      const shift = e.shiftKey || e.getModifierState?.('Shift');
       if (shift !== fineRef.current) setFineMode(shift);
       // clientY is real px; divide by the UI scale so sensitivity stays
       // constant in design px (the same drag distance relative to the knob's
       // rendered size always covers the same value range).
       applyLive(
         liveRef.current +
-          ((lastYRef.current - e.clientY) / getUiScale()) *
+          ((lastYRef.current - y) / getUiScale()) *
             (fineRef.current ? BASE_SENSITIVITY / FINE_FACTOR : BASE_SENSITIVITY)
       );
-      lastYRef.current = e.clientY;
+      lastYRef.current = y;
+    };
+
+    const handleDragPointerMove = (e: PointerEvent) => {
+      if (activeTouchIdRef.current !== null || e.pointerId !== activePointerIdRef.current) return;
+      applyDragMove(e.clientX, e.clientY, e.shiftKey || e.getModifierState?.('Shift'));
     };
 
     const resetToDefault = () => {
@@ -261,47 +266,19 @@ export const KnobControl: React.FC<KnobControlProps> = ({
       return true;
     };
 
-    const handlePointerDown = (e: PointerEvent) => {
-      if (e.button !== 0 && e.pointerType === 'mouse') return;
-      // Own the gesture so react-knob-headless's useDrag (value + thisDelta)
-      // never starts; that path is what fought the native echo.
-      e.stopPropagation();
-      knobElement.focus();
-
-      // Touch: second tap of a double tap resets, and ends the gesture there.
-      // Engaging the drag as well would let the few pixels of finger travel
-      // between the two taps move the value straight back off the default.
-      if (e.pointerType === 'touch') {
-        const previous = lastTapRef.current;
-        const isDoubleTap =
-          previous !== null &&
-          e.timeStamp - previous.at < DOUBLE_TAP_MS &&
-          Math.abs(e.clientX - previous.x) < DOUBLE_TAP_SLOP_PX &&
-          Math.abs(e.clientY - previous.y) < DOUBLE_TAP_SLOP_PX;
-        lastTapRef.current = isDoubleTap
-          ? null // a third tap starts a fresh pair, it is not another reset
-          : { at: e.timeStamp, x: e.clientX, y: e.clientY };
-        if (isDoubleTap && resetToDefault()) return;
-      }
-      // Alt/Option-click: reset to default. The drag still engages beneath,
-      // which is harmless: releasing without moving stays at the default.
-      // onReset runs after so owners can restore sibling defaults (e.g. the
-      // Spread/Align advanced deck) in the same gesture.
-      if (!(e.altKey && resetToDefault())) {
-        liveRef.current = valueRef.current;
-        emittedRef.current = valueRef.current;
-        setLiveValue(valueRef.current);
-      }
-
+    const startDrag = (x: number, y: number, shift: boolean, pointerId: number | null) => {
       draggingRef.current = true;
-      pressOriginRef.current = { x: e.clientX, y: e.clientY };
-      lastYRef.current = e.clientY;
-      setFineMode(e.shiftKey || e.getModifierState?.('Shift'));
+      activePointerIdRef.current = pointerId;
+      pressOriginRef.current = { x, y };
+      lastYRef.current = y;
+      setFineMode(shift);
       setDragging(true);
-      try {
-        knobElement.setPointerCapture(e.pointerId);
-      } catch {
-        /* capture is best-effort; document listeners still cover the drag */
+      if (pointerId !== null) {
+        try {
+          knobElement.setPointerCapture(pointerId);
+        } catch {
+          /* capture is best-effort; document listeners still cover the drag */
+        }
       }
       window.addEventListener('keydown', handleShift);
       window.addEventListener('keyup', handleShift);
@@ -317,15 +294,18 @@ export const KnobControl: React.FC<KnobControlProps> = ({
       dragStateRef.current?.(true);
     };
 
-    const handlePointerUp = () => {
+    const finishDrag = () => {
       if (!draggingRef.current) return;
       draggingRef.current = false;
+      activePointerIdRef.current = null;
+      activeTouchIdRef.current = null;
       pressOriginRef.current = null;
       setDragging(false);
       setFineMode(false);
       window.removeEventListener('keydown', handleShift);
       window.removeEventListener('keyup', handleShift);
       window.removeEventListener('pointermove', handleDragPointerMove);
+      window.removeEventListener('touchmove', handleTouchMove);
 
       // Restore text selection
       const bodyStyle = document.body.style as CSSStyleDeclaration & Record<string, string>;
@@ -337,6 +317,90 @@ export const KnobControl: React.FC<KnobControlProps> = ({
       dragStateRef.current?.(false);
     };
 
+    const handlePointerDown = (e: PointerEvent) => {
+      if (activeTouchIdRef.current !== null) return;
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      // Own the gesture so react-knob-headless's useDrag (value + thisDelta)
+      // never starts; that path is what fought the native echo.
+      e.stopPropagation();
+      knobElement.focus();
+
+      // Artemis WebKitGTK can cancel touch PointerEvents while continuing to
+      // send TouchEvents. TouchEvents own its double-tap recognizer too, so a
+      // cancelled pointer stream cannot leave a false tap candidate behind.
+      if (e.pointerType === 'touch' && !IS_ARTEMIS_KIOSK) {
+        const previous = lastTapRef.current;
+        const isDoubleTap =
+          previous !== null &&
+          e.timeStamp - previous.at < DOUBLE_TAP_MS &&
+          Math.abs(e.clientX - previous.x) < DOUBLE_TAP_SLOP_PX &&
+          Math.abs(e.clientY - previous.y) < DOUBLE_TAP_SLOP_PX;
+        lastTapRef.current = isDoubleTap ? null : { at: e.timeStamp, x: e.clientX, y: e.clientY };
+        if (isDoubleTap && resetToDefault()) return;
+      }
+      if (!(e.altKey && resetToDefault())) {
+        liveRef.current = valueRef.current;
+        emittedRef.current = valueRef.current;
+        setLiveValue(valueRef.current);
+      }
+      startDrag(e.clientX, e.clientY, e.shiftKey || e.getModifierState?.('Shift'), e.pointerId);
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      if (activeTouchIdRef.current !== null || e.pointerId !== activePointerIdRef.current) return;
+      finishDrag();
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const id = activeTouchIdRef.current;
+      if (id === null) return;
+      const touch = Array.from(e.touches).find((item) => item.identifier === id);
+      if (!touch) return;
+      e.preventDefault();
+      applyDragMove(touch.clientX, touch.clientY, false);
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      e.preventDefault();
+      if (activeTouchIdRef.current !== null) return;
+      e.stopPropagation();
+      lastPointerTypeRef.current = 'touch';
+      knobElement.focus();
+      const previous = lastTapRef.current;
+      const isDoubleTap =
+        previous !== null &&
+        e.timeStamp - previous.at < DOUBLE_TAP_MS &&
+        Math.abs(touch.clientX - previous.x) < DOUBLE_TAP_SLOP_PX &&
+        Math.abs(touch.clientY - previous.y) < DOUBLE_TAP_SLOP_PX;
+      lastTapRef.current = isDoubleTap
+        ? null
+        : { at: e.timeStamp, x: touch.clientX, y: touch.clientY };
+      if (isDoubleTap && resetToDefault()) {
+        finishDrag();
+        return;
+      }
+      if (!draggingRef.current) {
+        liveRef.current = valueRef.current;
+        emittedRef.current = valueRef.current;
+        setLiveValue(valueRef.current);
+        startDrag(touch.clientX, touch.clientY, false, null);
+      } else {
+        pressOriginRef.current = { x: touch.clientX, y: touch.clientY };
+        lastYRef.current = touch.clientY;
+        setFineMode(false);
+      }
+      activeTouchIdRef.current = touch.identifier;
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const id = activeTouchIdRef.current;
+      if (id !== null && Array.from(e.changedTouches).some((item) => item.identifier === id))
+        finishDrag();
+    };
+
     // Pointer events (not mouse events) so the drag state, and with it the
     // value readout and pinned hint, also engages for touch drags, which
     // never synthesize mouse events while moving.
@@ -345,6 +409,11 @@ export const KnobControl: React.FC<KnobControlProps> = ({
     knobElement.addEventListener('pointerdown', handlePointerDown);
     document.addEventListener('pointerup', handlePointerUp);
     document.addEventListener('pointercancel', handlePointerUp);
+    if (IS_ARTEMIS_KIOSK) {
+      knobElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      document.addEventListener('touchcancel', handleTouchEnd);
+    }
 
     return () => {
       knobElement.removeEventListener('selectstart', preventSelection);
@@ -352,9 +421,15 @@ export const KnobControl: React.FC<KnobControlProps> = ({
       knobElement.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('pointerup', handlePointerUp);
       document.removeEventListener('pointercancel', handlePointerUp);
+      knobElement.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.removeEventListener('touchcancel', handleTouchEnd);
       window.removeEventListener('keydown', handleShift);
       window.removeEventListener('keyup', handleShift);
       window.removeEventListener('pointermove', handleDragPointerMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+      activePointerIdRef.current = null;
+      activeTouchIdRef.current = null;
 
       // Ensure body styles are reset
       const bodyStyle = document.body.style as CSSStyleDeclaration & Record<string, string>;
@@ -467,6 +542,7 @@ export const KnobControl: React.FC<KnobControlProps> = ({
     <div
       {...(help ? helpProps(help) : {})}
       onPointerDownCapture={(e) => (lastPointerTypeRef.current = e.pointerType)}
+      onTouchStartCapture={() => (lastPointerTypeRef.current = 'touch')}
       style={{
         display: 'flex',
         flexDirection: labelBottom ? 'column' : 'column-reverse',
