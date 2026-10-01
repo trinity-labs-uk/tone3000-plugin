@@ -49,8 +49,7 @@ if [ "$window_ready" -ne 1 ]; then
   exit 1
 fi
 
-# Wait for WebKit to paint the embedded React UI, then activate the fixed
-# upper-left button through XTEST. The process must exit through JUCE.
+# Let the native JUCE UI paint, then activate the Artemis header button.
 sleep 3
 python3 - <<'PY'
 import ctypes
@@ -64,7 +63,7 @@ x11.XFlush.argtypes = [ctypes.c_void_p]
 x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
 display = x11.XOpenDisplay(None)
 assert display, 'cannot open the Xvfb display'
-xtst.XTestFakeMotionEvent(display, -1, 65, 35, 0)
+xtst.XTestFakeMotionEvent(display, -1, 210, 38, 0)
 xtst.XTestFakeButtonEvent(display, 1, 1, 0)
 xtst.XTestFakeButtonEvent(display, 1, 0, 0)
 x11.XFlush(display)
