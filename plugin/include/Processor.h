@@ -189,6 +189,13 @@ public:
   // re-queues the block's active model through the background loader. The
   // simplest recovery when tone3000.com was unreachable mid-load.
   bool retryModelLoad(const std::string& blockId);
+  // Copy the active model's original cached bytes to Houston's Imports/NAM
+  // or Imports/IR inbox. Call off the message/audio threads: only the cache
+  // snapshot takes chainMutex; disk I/O never does. Does not change playback,
+  // state or the plugin's local stash. Returns {path, alreadySaved} or {error}.
+  // An explicit root is useful for alternate installations and isolated tests.
+  juce::var saveModelToHouston(const std::string& blockId,
+                               const juce::File& importsRoot = {});
   bool removeChainBlock(const std::string& blockId);
   bool reorderChainBlocks(const std::vector<std::string>& newOrder);
   // Move a block into the other lane at the given index (stereo mode drag

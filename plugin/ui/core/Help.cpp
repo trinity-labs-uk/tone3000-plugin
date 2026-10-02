@@ -181,6 +181,7 @@ std::map<Key, String> buildTable() {
       U("Add Tone: browse TONE3000 for this slot, or drop a .nam or IR .wav file (or a folder of them). Right-click: paste / load file · drag: move.");
   t[Key::closeToneBrowser] = U("Close: back to the chain.");
   t[Key::copyBlock] = U("Copy: copy this block (tone, model and all settings).");
+  t[Key::saveToHouston] = U("Save to Houston: add the current NAM or IR to Houston's import inbox.");
   t[Key::pasteBlock] = U("Paste: add a copy of the copied block in this slot.");
   t[Key::loadFileTile] =
       U("Load File: pick a local .nam or IR .wav file to load here. No account needed.");

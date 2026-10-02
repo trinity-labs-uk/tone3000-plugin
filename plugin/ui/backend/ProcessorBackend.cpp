@@ -21,6 +21,9 @@ ProcessorBackend::ProcessorBackend(TONE3000Processor& processor, juce::Component
 }
 
 ProcessorBackend::~ProcessorBackend() {
+  // Finish any copy before our processor reference can outlive the editor.
+  // The completion callback carries only a SafePointer to its tile.
+  if (houstonExports_ != nullptr) houstonExports_->removeAllJobs(true, -1);
   // The mapper outlives the editor (it's the processor's): detach our hook.
   processor_.midiMapper.onChanged = nullptr;
   // Tear down the audio settings controller before the listeners it reports to.
@@ -68,6 +71,21 @@ bool ProcessorBackend::switchModel(const std::string& blockId, int modelId, cons
 }
 bool ProcessorBackend::retryModelLoad(const std::string& blockId) {
   return processor_.retryModelLoad(blockId);
+}
+bool ProcessorBackend::canSaveToHouston() {
+#if JUCE_LINUX && T3K_ARTEMIS_KIOSK
+  return true;
+#else
+  return false;
+#endif
+}
+void ProcessorBackend::saveModelToHouston(const std::string& blockId,
+                                         std::function<void(juce::var)> done) {
+  if (houstonExports_ == nullptr) houstonExports_ = std::make_unique<juce::ThreadPool>(1);
+  houstonExports_->addJob([this, blockId, done = std::move(done)] {
+    const auto result = processor_.saveModelToHouston(blockId);
+    juce::MessageManager::callAsync([done, result] { if (done) done(result); });
+  });
 }
 bool ProcessorBackend::removeChainBlock(const std::string& blockId) {
   return processor_.removeChainBlock(blockId);

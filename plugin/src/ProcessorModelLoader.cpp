@@ -1,15 +1,53 @@
 #include "Processor.h"
+#include "HoustonExport.h"
 #include "json.hpp"
 #include "NAM/wavenet/a2_fast.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
 #include <mutex>
 #include <stdexcept>
 #include <string>
 #if !JUCE_WINDOWS
 #include <sys/stat.h>
 #endif
+#if JUCE_LINUX
+#include <cerrno>
+#include <fcntl.h>
+#include <linux/fs.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
+
+houston_export::PublishResult houston_export::publishDirectory(const juce::File& workspace,
+                                                               const juce::File& destination) {
+#if JUCE_LINUX && defined(SYS_renameat2)
+  // Directory publication works on the Artemis exFAT transfer volume too;
+  // unlike hard links it does not require Unix filesystem link support.
+  if (::syscall(SYS_renameat2, AT_FDCWD, workspace.getFullPathName().toRawUTF8(),
+                AT_FDCWD, destination.getFullPathName().toRawUTF8(), RENAME_NOREPLACE) == 0)
+    return PublishResult::published;
+  if (errno == EEXIST || errno == ENOTEMPTY) return PublishResult::collision;
+  if (errno != ENOSYS && errno != EINVAL && errno != EOPNOTSUPP) return PublishResult::failed;
+#endif
+  // Older kernels and desktop platforms: directory rename never overwrites
+  // a nonempty destination. Do not use File::moveFileTo, which deletes it.
+  if (destination.exists() || destination.isSymbolicLink()) return PublishResult::collision;
+  const auto path = [](const juce::File& file) {
+#if JUCE_WINDOWS
+    return std::filesystem::path(file.getFullPathName().toWideCharPointer());
+#else
+    return std::filesystem::path(file.getFullPathName().toStdString());
+#endif
+  };
+  std::error_code error;
+  std::filesystem::rename(path(workspace), path(destination), error);
+  if (!error) return PublishResult::published;
+  if (error == std::errc::file_exists || error == std::errc::directory_not_empty)
+    return PublishResult::collision;
+  return PublishResult::failed;
+}
 
 // #####################################
 // MODEL LOADING HELPERS
@@ -687,6 +725,173 @@ juce::String TONE3000Processor::localFileNameFromUrl(const juce::URL& url) {
   if (url.isLocalFile())
     return url.getLocalFile().getFileName();
   return juce::URL::removeEscapeChars(url.getFileName());
+}
+
+juce::var TONE3000Processor::saveModelToHouston(const std::string& blockId,
+                                               const juce::File& importsRoot) {
+  auto failure = [](const juce::String& message) {
+    juce::DynamicObject::Ptr result = new juce::DynamicObject();
+    result->setProperty("error", message);
+    return juce::var(result.get());
+  };
+
+  std::vector<uint8_t> bytes;
+  juce::String title, modelName, toneJson;
+  const uint8_t* cachedData = nullptr;
+  size_t cachedSize = 0;
+  int activeModelId = 0;
+  bool isNam = false, isLocal = false;
+  {
+    const juce::ScopedLock lock(chainMutex);
+    const auto* block = findBlockById(blockId);
+    if (block == nullptr || !block->loaded || block->modelLoading || block->loadFailed ||
+        (block->type != ChainBlockType::NAM && block->type != ChainBlockType::IR))
+      return failure("Wait for the model to finish loading before saving to Houston");
+    const auto cached = block->modelCache.find(block->activeModelId);
+    if (cached == block->modelCache.end() || cached->second.empty())
+      return failure("The loaded model's file is unavailable");
+    cachedData = cached->second.data();
+    cachedSize = cached->second.size();
+    activeModelId = block->activeModelId;
+    toneJson = block->toneJson;
+    isNam = block->type == ChainBlockType::NAM;
+    isLocal = static_cast<bool>(block->toneVar["local"]);
+    title = block->toneVar["title"].toString();
+    if (const auto* models = block->toneVar["models"].getArray())
+      for (const auto& model : *models)
+        if (static_cast<int>(model["id"]) == block->activeModelId) {
+          modelName = model["name"].toString();
+          break;
+        }
+  }
+
+  // Original IRs may be large even when playback trims their kernels. Allocate
+  // outside chainMutex and copy in bounded slices so saving cannot hold the
+  // audio thread's try-lock across a large allocation or whole-file memcpy.
+  // A model switch/removal during the snapshot cancels only the export.
+  bytes.resize(cachedSize);
+  constexpr size_t kCopySlice = 64 * 1024;
+  for (size_t offset = 0; offset < cachedSize; offset += kCopySlice) {
+    const juce::ScopedLock lock(chainMutex);
+    const auto* block = findBlockById(blockId);
+    if (block == nullptr || !block->loaded || block->modelLoading || block->loadFailed ||
+        block->activeModelId != activeModelId || block->toneJson != toneJson)
+      return failure("The model changed while saving to Houston; try again");
+    const auto cached = block->modelCache.find(activeModelId);
+    if (cached == block->modelCache.end() || cached->second.data() != cachedData ||
+        cached->second.size() != cachedSize)
+      return failure("The model changed while saving to Houston; try again");
+    std::memcpy(bytes.data() + offset, cached->second.data() + offset,
+                std::min(kCopySlice, cachedSize - offset));
+  }
+
+  // Match Launchpad's data_paths.user_imports_dir(). The default user-files
+  // volume is removable/exported over USB: never create a shadow Imports
+  // directory on the root filesystem while that volume is unmounted.
+  juce::File root = importsRoot;
+  if (root == juce::File()) {
+    auto configured = juce::SystemStats::getEnvironmentVariable("T3K_HOUSTON_IMPORTS_DIR", "").trim();
+    if (configured.isEmpty())
+      configured = juce::SystemStats::getEnvironmentVariable("LAUNCHPAD_USER_IMPORTS_DIR", "").trim();
+    if (configured.isNotEmpty()) {
+      root = juce::File(configured);
+    } else {
+      auto userRoot = juce::SystemStats::getEnvironmentVariable("LAUNCHPAD_USER_FILES_ROOT", "").trim();
+      if (userRoot.isEmpty())
+        userRoot = juce::SystemStats::getEnvironmentVariable("ARTEMIS_USER_FILES_ROOT", "").trim();
+      if (userRoot.isEmpty()) userRoot = "/data/artemis/user-files";
+      root = juce::File(userRoot).getChildFile("Imports");
+    }
+    const juce::File defaultUserRoot("/data/artemis/user-files");
+    if (root == defaultUserRoot || root.isAChildOf(defaultUserRoot)) {
+      bool mounted = false;
+#if JUCE_LINUX
+      const auto mountLines = juce::StringArray::fromLines(juce::File("/proc/self/mountinfo").loadFileAsString());
+      for (const auto& line : mountLines) {
+        const auto fields = juce::StringArray::fromTokens(line, false);
+        if (fields.size() > 4 && fields[4] == defaultUserRoot.getFullPathName()) { mounted = true; break; }
+      }
+#endif
+      if (!mounted) return failure("Houston Imports is unavailable while user storage is disconnected");
+    }
+  }
+
+  const auto directory = root.getChildFile(isNam ? "NAM" : "IR");
+  if (directory.createDirectory().failed())
+    return failure("Couldn't open Houston Imports for writing");
+
+  // Serialize simultaneous exports across plugin instances, without sharing
+  // Houston's manifest writer or holding the audio chain lock during I/O.
+  juce::InterProcessLock exportLock("TONE3000.houston-export");
+  if (!exportLock.enter(2000)) return failure("Another model is being saved to Houston; try again");
+  struct Unlock {
+    juce::InterProcessLock& lock;
+    ~Unlock() { lock.exit(); }
+  } heldLock{exportLock};
+
+  auto name = juce::File::createLegalFileName(title + (modelName.isNotEmpty() && modelName != title
+                                                          ? " - " + modelName : juce::String()))
+                  .replaceCharacter('/', '_').replaceCharacter('\\', '_').trim().trimCharactersAtStart(".");
+  while (name.getNumBytesAsUTF8() > 100) name = name.dropLastCharacters(1);
+  if (name.isEmpty()) name = "Model";
+  const auto source = isLocal ? juce::String("other") : juce::String("t3k");
+  const auto stem = name;
+  const auto extension = isNam ? ".nam" : ".wav";
+
+  juce::DynamicObject::Ptr metadata = new juce::DynamicObject();
+  metadata->setProperty("version", 1);
+  metadata->setProperty("source", source);
+  metadata->setProperty("origin", "plugin");
+  const auto provenance = juce::JSON::toString(juce::var(metadata.get()));
+
+  // Each visible NAM folder is a single capture, so Houston's pack
+  // classification cannot group an amp and a pedal exported separately.
+  // Keeping native exports in their own folders also isolates them from
+  // loose browser downloads with the same friendly filename.
+  const auto filename = stem + extension;
+  struct Workspace {
+    juce::File path;
+    ~Workspace() { if (path != juce::File()) path.deleteRecursively(); }
+  } workspace;
+
+  for (int suffix = 0; suffix < 1000; ++suffix) {
+    const auto pack = directory.getChildFile(stem + (suffix == 0 ? juce::String() : " (" + juce::String(suffix) + ")"));
+    const auto asset = pack.getChildFile(filename);
+    const auto sidecar = pack.getChildFile(filename + ".provenance.json");
+    bool alreadySaved = false;
+    if (pack.exists() || pack.isSymbolicLink()) {
+      juce::MemoryBlock existing;
+      const auto previous = juce::JSON::parse(sidecar.loadFileAsString());
+      alreadySaved = !pack.isSymbolicLink() && !asset.isSymbolicLink() && !sidecar.isSymbolicLink() &&
+                     static_cast<int>(previous["version"]) == 1 &&
+                     previous["source"].toString() == source && previous["origin"].toString() == "plugin" &&
+                     asset.getSize() == static_cast<juce::int64>(bytes.size()) &&
+                     asset.loadFileAsData(existing) && existing.getSize() == bytes.size() &&
+                     std::memcmp(existing.getData(), bytes.data(), bytes.size()) == 0;
+      if (!alreadySaved) continue;  // Never replace someone else's import.
+    } else {
+      // Houston ignores hidden workspace directories. Publish the complete
+      // asset+metadata folder atomically, reserving the name without replacing
+      // a browser pack that appeared after our existence check.
+      if (workspace.path == juce::File()) {
+        workspace.path = directory.getChildFile(".houston-export-" + juce::Uuid().toString());
+        if (workspace.path.createDirectory().failed() ||
+            !workspace.path.getChildFile(filename).replaceWithData(bytes.data(), bytes.size()) ||
+            !workspace.path.getChildFile(filename + ".provenance.json").replaceWithText(provenance))
+          return failure("Couldn't save the model to Houston Imports");
+      }
+      const auto published = houston_export::publishDirectory(workspace.path, pack);
+      if (published == houston_export::PublishResult::collision) continue;
+      if (published == houston_export::PublishResult::failed)
+        return failure("Couldn't save the model to Houston Imports");
+      workspace.path = juce::File();  // Publication owns it now; do not remove it.
+    }
+    juce::DynamicObject::Ptr result = new juce::DynamicObject();
+    result->setProperty("path", asset.getFullPathName());
+    result->setProperty("alreadySaved", alreadySaved);
+    return juce::var(result.get());
+  }
+  return failure("Couldn't choose an unused Houston import filename");
 }
 
 juce::File TONE3000Processor::resolveLocalModelFile(const juce::File& stashRoot,
@@ -1423,4 +1628,3 @@ void TONE3000Processor::applyPreparedModelToChainBlock(ChainBlock& block, ChainB
     block.wetFadeGain.setCurrentAndTargetValue(0.0f);
   }
 }
-

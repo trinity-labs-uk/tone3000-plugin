@@ -74,6 +74,7 @@ private:
   ChainItem block_;
   bool enabled_ = true;  // optimistic; native converges via the resync
   bool hovered_ = false;
+  bool savingToHouston_ = false;
 
   ToneImage image_;
   AlphaTween imageFade_{image_};

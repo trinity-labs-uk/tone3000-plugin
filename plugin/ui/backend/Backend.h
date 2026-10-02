@@ -4,13 +4,15 @@
 // implementations: ProcessorBackend (the plugin) and the testbed's
 // MockBackend (fixture driven), so every view can render without audio.
 //
-// Every method is called on the message thread and completes inline. Async
-// work (file choosers, HTTP) lives in services/.
+// Methods are called on the message thread. Most complete inline; the
+// explicitly asynchronous Houston export reports completion on this thread.
+// Other async work (file choosers, HTTP) lives in services/.
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <string>
+#include <functional>
 #include <vector>
 
 namespace t3k::ui {
@@ -51,6 +53,12 @@ public:
   virtual bool refreshToneMetadata(const juce::String& toneJson) = 0;
   virtual bool switchModel(const std::string& blockId, int modelId, const juce::var& model) = 0;
   virtual bool retryModelLoad(const std::string& blockId) = 0;
+  // Supplemental Artemis export. Completion runs on the message thread;
+  // disk I/O runs on a worker. Other platforms/test backends hide the action.
+  virtual bool canSaveToHouston() { return false; }
+  virtual void saveModelToHouston(const std::string&, std::function<void(juce::var)> done) {
+    if (done) done({});
+  }
   virtual bool removeChainBlock(const std::string& blockId) = 0;
   virtual bool reorderChainBlocks(const std::vector<std::string>& newOrder) = 0;
   virtual bool moveBlockToChain(const std::string& blockId, const juce::String& side, int index) = 0;

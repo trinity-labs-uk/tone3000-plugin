@@ -99,6 +99,21 @@ std::vector<ContextMenu::Item> ToneTile::menuItems() {
       {"Copy", Icon::Copy, help::Key::copyBlock,
        [this] { this->services().chain.copyBlock(blockId()); }},
   };
+  if (services().backend.canSaveToHouston()) {
+    items.push_back({"Save to Houston", Icon::Download, help::Key::saveToHouston,
+                    [this] {
+                      savingToHouston_ = true;
+                      services().toast.show("Saving to Houston...");
+                      services().backend.saveModelToHouston(
+                          blockId(), [safe = juce::Component::SafePointer<ToneTile>(this)](juce::var result) {
+                            if (safe == nullptr) return;
+                            safe->savingToHouston_ = false;
+                            const auto error = result["error"].toString();
+                            safe->services().toast.show(error.isNotEmpty() ? error : "Saved to Houston Imports");
+                          });
+                    },
+                    savingToHouston_ || !block_.loaded || block_.modelLoading || block_.loadFailed});
+  }
   for (auto& item : localLoadItems()) items.push_back(std::move(item));
   return items;
 }

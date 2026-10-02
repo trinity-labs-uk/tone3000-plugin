@@ -38,6 +38,7 @@
 #include "views/browser/ToneCard.h"
 #include "views/gallery/GalleryGeometry.h"
 #include "views/gallery/GalleryTile.h"
+#include "views/gallery/ToneTile.h"
 #include "widgets/Avatar.h"
 #include "widgets/ChromeTextButton.h"
 #include "widgets/Clickable.h"
@@ -835,6 +836,69 @@ struct ToneQueryTests : juce::UnitTest {
 };
 
 // The keyboard / screen-reader contract every control signs up to.
+struct HoustonExportUiTests : juce::UnitTest {
+  HoustonExportUiTests() : juce::UnitTest("Houston export", "ui") {}
+
+  struct BackendWithExport : MockBackend {
+    using MockBackend::MockBackend;
+    bool available = true;
+    std::string exportedId;
+    std::function<void(juce::var)> completion;
+    bool canSaveToHouston() override { return available; }
+    void saveModelToHouston(const std::string& id, std::function<void(juce::var)> done) override {
+      exportedId = id;
+      completion = std::move(done);
+    }
+  };
+  struct Tile : ToneTile {
+    using ToneTile::ToneTile;
+    using ToneTile::menuItems;
+  };
+
+  void runTest() override {
+    const auto fixtures = Fixtures::load(fixturesDir().getChildFile("scenarios.json"));
+    const auto* scenario = fixtures.find("main-stereo");
+    if (scenario == nullptr) { expect(false, "main-stereo fixture missing"); return; }
+    BackendWithExport backend(scenario->data);
+    ScaledHost host(backend, *scenario, fixtures.root);
+    auto& services = host.pluginRoot().services();
+    ChainItem block;
+    block.blockId = "export-me";
+    block.isInsert = false;
+    block.loaded = true;
+    block.tone.format = "nam";
+    auto tile = std::make_unique<Tile>(services, block, 120);
+    auto exportItem = [&]() {
+      for (const auto& item : tile->menuItems())
+        if (item.help == help::Key::saveToHouston) return item;
+      return ContextMenu::Item{};
+    };
+
+    beginTest("available loaded model exports and reports completion; repeat action is disabled while saving");
+    expect(!exportItem().disabled);
+    exportItem().onSelect();
+    expectEquals(juce::String(backend.exportedId), juce::String("export-me"));
+    expect(exportItem().disabled);
+    backend.completion(juce::JSON::parse(R"({"path":"/tmp/example.nam"})"));
+    expect(!exportItem().disabled);
+    expectEquals(services.toast.message(), juce::String("Saved to Houston Imports"));
+
+    beginTest("failure is visible and a loading model cannot be saved");
+    exportItem().onSelect();
+    backend.completion(juce::JSON::parse(R"({"error":"Houston Imports unavailable"})"));
+    expectEquals(services.toast.message(), juce::String("Houston Imports unavailable"));
+    block.modelLoading = true;
+    tile->setBlock(block);
+    expect(exportItem().disabled);
+
+    beginTest("non-Artemis backends hide the action; closing the tile drops pending completion safely");
+    backend.available = false;
+    expect(exportItem().label.isEmpty());
+    tile.reset();
+    backend.completion(juce::JSON::parse(R"({"path":"/tmp/example.nam"})"));
+  }
+};
+
 struct AccessibilityTests : juce::UnitTest {
   AccessibilityTests() : juce::UnitTest("Accessibility", "ui") {}
   void runTest() override {
@@ -2120,6 +2184,7 @@ ArtemisViewportTests artemisViewportTests;
 HtmlTests htmlTests;
 FontTests fontTests;
 RichFlowTests richFlowTests;
+HoustonExportUiTests houstonExportUiTests;
 AccessibilityTests accessibilityTests;
 FocusPolicyTests focusPolicyTests;
 TouchScrollTests touchScrollTests;

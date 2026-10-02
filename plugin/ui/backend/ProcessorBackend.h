@@ -35,6 +35,9 @@ public:
   bool refreshToneMetadata(const juce::String& toneJson) override;
   bool switchModel(const std::string& blockId, int modelId, const juce::var& model) override;
   bool retryModelLoad(const std::string& blockId) override;
+  bool canSaveToHouston() override;
+  void saveModelToHouston(const std::string& blockId,
+                          std::function<void(juce::var)> done) override;
   bool removeChainBlock(const std::string& blockId) override;
   bool reorderChainBlocks(const std::vector<std::string>& newOrder) override;
   bool moveBlockToChain(const std::string& blockId, const juce::String& side, int index) override;
@@ -124,6 +127,7 @@ private:
   TONE3000Processor& processor_;
   juce::Component& peerHost_;
   std::unique_ptr<StandaloneAudioSettings> audioSettings_;
+  std::unique_ptr<juce::ThreadPool> houstonExports_;
 };
 
 }  // namespace t3k::ui

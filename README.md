@@ -500,6 +500,42 @@ source). The CLAP build uses **clap-juce-extensions** and the **CLAP** SDK
 - [lucide](https://lucide.dev) icons (ISC), embedded as SVG paths in
   `plugin/ui/core/LucideIcons.h`.
 
+## Saving models to Houston on Artemis
+
+Load a NAM or IR, then touch and hold (or right-click) its tile and choose
+**Save to Houston**. The current model is copied to Houston's normal Imports
+inbox, ready for its existing import/classification flow. The action also works
+offline for models restored from plugin state or presets. It does not change
+the playing model or its plugin cache, and an unavailable inbox reports an
+error without affecting playback. Repeating the action reuses an identical
+copy still waiting in the inbox.
+
+Catalog models carry `source: "t3k"`, and locally loaded files carry
+`source: "other"`. Both carry `origin: "plugin"`. A sibling
+`<filename>.provenance.json` with `version: 1` is published together with the
+asset in a folder for that model; Houston consumes this metadata into its
+manifest. The original NAM/WAV bytes
+are preserved, including IRs whose playback kernels are trimmed internally.
+Saving a local file in the plugin does not give it TONE3000 provenance.
+
+The Artemis UI exposes this option when built with `T3K_ARTEMIS_KIOSK=ON`.
+Launchpad supplies `T3K_HOUSTON_IMPORTS_DIR`; when absent, the exporter uses
+`LAUNCHPAD_USER_IMPORTS_DIR`, then `Imports` below `LAUNCHPAD_USER_FILES_ROOT`,
+`ARTEMIS_USER_FILES_ROOT`, or `/data/artemis/user-files`, in that order.
+The default user-files volume must be mounted. Each model gets its own friendly
+folder inside `NAM` or `IR` below this inbox. Publishing the complete folder
+avoids collisions with browser downloads and incomplete imports. Houston
+consumes provenance through its existing manifest importer.
+
+Catalog downloads ordinarily live in each block's in-memory cache; referenced
+bytes are embedded in saved processor state and presets. They are not a
+general on-disk download library. Local imports separately keep their existing
+content-addressed stash in the platform app-data `TONE3000/LocalModels` folder.
+
+`HoustonExportTest.*` in the native DSP suite covers the export contract and
+failure isolation. Setting `T3K_HOUSTON_EXPORT_FIXTURE` to an empty temporary
+Imports directory retains native NAM/IR exports for cross-repository tests.
+
 ## Links
 
 - [TONE3000](https://www.tone3000.com): NAM captures and IRs.
