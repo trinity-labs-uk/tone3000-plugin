@@ -242,31 +242,33 @@ Faceplate::Faceplate(Services& services)
               primaryKnob("Output", scales::gainDb(), 0.5f, help::Key::outputLevel)),
       spreadEnabled_(services.backend, "spreadEnabled") {
   setOpaque(true);
+  controls_.setInterceptsMouseClicks(false, true);
+  addAndMakeVisible(controls_);
 
-  addAndMakeVisible(input_);
-  addChildComponent(*inputMode_);
+  controls_.addAndMakeVisible(input_);
+  controls_.addChildComponent(*inputMode_);
   // The effects start hidden; syncFlags shows what the view settings and
   // the power switches ask for.
-  addChildComponent(gate_);
-  addChildComponent(pitch_);
+  controls_.addChildComponent(gate_);
+  controls_.addChildComponent(pitch_);
 
   // Powered-off section: knobs + labels dim and go inert; the power button
   // stays outside the dimmed wrapper, bright and clickable.
   for (auto* k : {&bass_, &middle_, &treble_}) toneDim_.addAndMakeVisible(*k);
   toneDim_.setOff(!tonePower_.value(), false);
   tonePower_.onValueChange = [this](bool on) { toneDim_.setOff(!on); };
-  addAndMakeVisible(toneDim_);
-  addAndMakeVisible(tonePower_);
+  controls_.addAndMakeVisible(toneDim_);
+  controls_.addAndMakeVisible(tonePower_);
 
   // Its hint (the reason it's dimmed) is set by syncFlags.
   imageDim_.addChildComponent(spread_);
   imageDim_.addChildComponent(align_);
-  addAndMakeVisible(imageDim_);
+  controls_.addAndMakeVisible(imageDim_);
 
   autoBalance_.onClick = [this] { services_.autoBalance.toggle(); };
-  addChildComponent(autoBalance_);
-  addChildComponent(balance_);
-  addAndMakeVisible(output_);
+  controls_.addChildComponent(autoBalance_);
+  controls_.addChildComponent(balance_);
+  controls_.addAndMakeVisible(output_);
 
   for (auto* p : {&spreadEnabled_, &gateEnabled_, &pitchEnabled_}) p->onChange = [this] { syncFlags(); };
   services_.prefs.addListener(this);
@@ -343,8 +345,21 @@ void Faceplate::paint(juce::Graphics& g) {
   paint::hairlineH(g, 0, static_cast<float>(getWidth()), 0, theme::kBorder);
 }
 
+void Faceplate::setDeviceViewport(bool enabled) {
+  if (deviceViewport_ == enabled) return;
+  deviceViewport_ = enabled;
+  resized();
+}
+
 void Faceplate::resized() {
-  const auto content = getLocalBounds().reduced(kPadX, kPadY);
+  // Keep one control geometry for the faceplate's labels, power buttons and
+  // advanced-deck anchors. The Artemis row uses 75% of that footprint, with
+  // its own wider layout surface so both optional effects fit at 780 x 360.
+  // Hosted windows retain the original controls and 108px row.
+  const float scale = deviceViewport_ ? static_cast<float>(kDeviceHeight) / kHeight : 1.0f;
+  controls_.setTransform(juce::AffineTransform::scale(scale));
+  controls_.setBounds(0, 0, design::snap(getWidth() / scale), design::snap(getHeight() / scale));
+  const auto content = controls_.getLocalBounds().reduced(kPadX, kPadY);
   const int baseline = content.getBottom();  // every label slot ends here
   const int knobBottom = baseline + Knob::kEditorOverflow;
   const auto knobY = [&](int size) { return knobBottom - Knob::heightFor(size); };

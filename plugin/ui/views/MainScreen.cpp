@@ -38,6 +38,10 @@ void MainScreen::syncMeters() {
 
 void MainScreen::resized() {
   auto area = getLocalBounds().reduced(kPadX, 0);
+  // Display scaling and optional chrome can leave much less than 358px.
+  // Keep the live rails inside the same middle band as the gallery.
+  inputMeter_.setColumnHeight(juce::jmin(kMeterHeight, juce::jmax(32, getHeight() - 24)));
+  outputMeter_.setColumnHeight(juce::jmin(kMeterHeight, juce::jmax(32, getHeight() - 24)));
   // Each meter slot is the mono footprint; the component is wider by kInset
   // on both sides to hold the stereo overflow.
   const int meterY = (getHeight() - inputMeter_.getHeight()) / 2;

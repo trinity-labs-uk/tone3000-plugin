@@ -33,6 +33,7 @@ public:
 private:
   const double zoom_;
   const bool deviceViewport_;
+  const int deviceWidth_, deviceHeight_;
   // As in NativeEditor: pin the shared typefaces and knob layers for the
   // host's lifetime so paints reuse them instead of rebuilding per call.
   Fonts::Hold fontsHold_;

@@ -18,7 +18,9 @@ void mergeFixture(juce::var& target, const juce::var& overrides) {
   if (auto* properties = overrides.getDynamicObject()) {
     for (const auto& [name, value] : properties->getProperties()) {
       auto current = target[name];
-      if (current.isObject() && value.isObject()) {
+      // JUCE arrays also report isObject(); replace arrays as complete
+      // fixture values and recurse only into actual property objects.
+      if (current.getDynamicObject() != nullptr && value.getDynamicObject() != nullptr) {
         mergeFixture(current, value);
         target.getDynamicObject()->setProperty(name, current);
       } else {

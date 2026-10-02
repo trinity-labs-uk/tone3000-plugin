@@ -37,6 +37,7 @@
 #include "views/browser/Paginator.h"
 #include "views/browser/ToneCard.h"
 #include "views/gallery/GalleryGeometry.h"
+#include "views/gallery/GalleryLane.h"
 #include "views/gallery/GalleryTile.h"
 #include "views/gallery/ToneTile.h"
 #include "widgets/Avatar.h"
@@ -1479,6 +1480,56 @@ struct PresetReorderTests : juce::UnitTest {
   }
 };
 
+// A banner can resize the gallery while a pointer still owns a tile. Keep
+// that component and its gesture state, then restore its normal dimensions.
+struct GalleryTileResizeTests : juce::UnitTest {
+  GalleryTileResizeTests() : juce::UnitTest("Gallery tile resizing", "ui") {}
+
+  void runTest() override {
+    const auto fixtures = Fixtures::load(fixturesDir().getChildFile("scenarios.json"));
+    const auto* scenario = fixtures.find("main-stereo");
+    if (scenario == nullptr) { expect(false, "main-stereo fixture missing"); return; }
+    MockBackend backend(scenario->data);
+    ScaledHost host(backend, *scenario, fixtures.root);
+    GalleryLane lane(host.pluginRoot().services(), ChainSide::left);
+    ChainItem tone, insert;
+    tone.blockId = "dragged-tone";
+    tone.isInsert = false;
+    tone.loaded = true;
+    tone.tone.format = "nam";
+    insert.blockId = "insert-slot";
+    const std::vector<ChainItem> items{tone, insert};
+    lane.setItems(items, 80);
+    const juce::Component::SafePointer<GalleryTile> toneTile(lane.tileFor(tone.blockId));
+    const juce::Component::SafePointer<GalleryTile> insertTile(lane.tileFor(insert.blockId));
+    toneTile->setTravelling(true);
+    lane.setPlaceholder(tone.blockId);
+
+    beginTest("banner-sized reflow retains the live tone and insert pointer targets");
+    lane.setItems(items, 63);
+    expect(toneTile != nullptr && toneTile.getComponent() == lane.tileFor(tone.blockId));
+    expect(insertTile != nullptr && insertTile.getComponent() == lane.tileFor(insert.blockId));
+    if (toneTile == nullptr || insertTile == nullptr) return;
+    expect(toneTile->travelling());
+    expect(!toneTile->isVisible(), "the travelling placeholder remains hidden");
+    expectEquals(toneTile->tileSize(), 63);
+    expectEquals(insertTile->tileSize(), 63);
+    expect(toneTile->getBounds() == juce::Rectangle<int>(0, 0, 63, 63));
+    expect(insertTile->getBounds() == juce::Rectangle<int>(63 + gallery::kTileGap, 0, 63, 63));
+    expectEquals(lane.getWidth(), gallery::laneWidth(2, 63));
+
+    beginTest("restoring the viewport keeps the same targets and clears the placeholder normally");
+    lane.setItems(items, 80);
+    lane.setPlaceholder({});
+    toneTile->setTravelling(false);
+    expect(toneTile.getComponent() == lane.tileFor(tone.blockId));
+    expect(insertTile.getComponent() == lane.tileFor(insert.blockId));
+    expectEquals(toneTile->tileSize(), 80);
+    expect(toneTile->getBounds() == juce::Rectangle<int>(0, 0, 80, 80));
+    expect(toneTile->isVisible() && !toneTile->travelling());
+  }
+};
+
 // Dragging a gallery tile across the stereo seam, through the peer. The tile
 // under the pointer is the component JUCE delivers the drag to, and the live
 // cross-lane reflow rebuilds both lanes: it must carry that tile over rather
@@ -2193,6 +2244,7 @@ PointerTests pointerTests;
 GlowCornerTests glowCornerTests;
 PresetReorderTests presetReorderTests;
 ChainCrossLaneDragTests chainCrossLaneDragTests;
+GalleryTileResizeTests galleryTileResizeTests;
 BlockSizeToggleTests blockSizeToggleTests;
 KnobReadoutTests knobReadoutTests;
 FaceplateEffectsTests faceplateEffectsTests;

@@ -27,6 +27,11 @@ DbMeter::DbMeter(MeterStore& meters, bool input, int height, Labels labels)
 
 DbMeter::~DbMeter() { meters_.removeListener(this); }
 
+void DbMeter::setColumnHeight(int height) {
+  rail_.count = std::max(2, DotRail::countForColumn(height, kDotSize, kDotGap));
+  setSize(kWidth, juce::roundToInt(rail_.length()));
+}
+
 // One column reading the combined level, or L/R columns per channel.
 void DbMeter::setStereo(bool stereo) {
   if (stereo == this->stereo() && !columns_.empty()) return;
@@ -72,8 +77,12 @@ void DbMeter::paint(juce::Graphics& g) {
       labels_ == Labels::left ? first.getX() - labelGap - kLabelWidth : last.getRight() + labelGap;
   g.setFont(Fonts::mono(kLabelFontPx));
   g.setColour(theme::kGray);
-  for (int db : kScaleMarks) {
+  float previousY = -kLabelFontPx;
+  for (int index = static_cast<int>(std::size(kScaleMarks)) - 1; index >= 0; --index) {
+    const int db = kScaleMarks[index];
     const float cy = h - (kDotSize / 2 + meter::unit(static_cast<float>(db)) * (h - kDotSize));
+    if (cy - previousY < kLabelFontPx + 1) continue;
+    previousY = cy;
     g.drawText(juce::String(db),
                juce::Rectangle<float>(labelX, cy - kLabelFontPx / 2, kLabelWidth, kLabelFontPx),
                juce::Justification::centredRight, false);

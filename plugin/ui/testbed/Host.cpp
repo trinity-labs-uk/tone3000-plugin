@@ -64,6 +64,7 @@ juce::File fixturesDir() { return juce::File(T3K_TESTBED_FIXTURES); }
 ScaledHost::ScaledHost(Backend& backend, const Scenario& scenario, const juce::var& fixtures)
     : zoom_(scenario.zoom()),
       deviceViewport_(scenario.deviceViewport()),
+      deviceWidth_(scenario.viewportWidth()), deviceHeight_(scenario.viewportHeight()),
       session(scenario.data, fixtures),
       services(backend, session, *this, prefs, /*updateNotice=*/true) {
   seedPrefs(prefs, scenario, fixtures);
@@ -79,16 +80,17 @@ ScaledHost::ScaledHost(Backend& backend, const Scenario& scenario, const juce::v
     return placeholderImage(key);
   };
   root = std::make_unique<PluginRoot>(services);
+  if (static_cast<bool>(scenario.data.getProperty("touch", false))) services.pointer.sawInput(true);
   addAndMakeVisible(*root);
   setVisible(true);  // offscreen captures have no window to make us visible
-  setSize(deviceViewport_ ? design::kArtemisWidth : juce::roundToInt(design::kWidth * zoom_),
-          deviceViewport_ ? design::kArtemisHeight : juce::roundToInt(root->designHeight() * zoom_));
+  setSize(deviceViewport_ ? deviceWidth_ : juce::roundToInt(design::kWidth * zoom_),
+          deviceViewport_ ? deviceHeight_ : juce::roundToInt(root->designHeight() * zoom_));
   resized();  // the root's chrome report already sized us; fit it now that it exists
 }
 
 void ScaledHost::setExtraContentHeight(int total, int) {
   if (deviceViewport_) {
-    setSize(design::kArtemisWidth, design::kArtemisHeight);
+    setSize(deviceWidth_, deviceHeight_);
     resized();
     return;
   }

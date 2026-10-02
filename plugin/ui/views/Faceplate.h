@@ -38,9 +38,13 @@ class Faceplate : public juce::Component,
                   private UiPrefs::Listener {
 public:
   static constexpr int kHeight = design::kPlateHeight;
+  static constexpr int kDeviceHeight = 81;
 
   explicit Faceplate(Services& services);
   ~Faceplate() override;
+
+  // Compact only the controls on Artemis; the root retains native panel bounds.
+  void setDeviceViewport(bool enabled);
 
   void paint(juce::Graphics& g) override;
   void resized() override;
@@ -56,6 +60,8 @@ private:
   void showEffect(juce::Component& group, bool show);
 
   Services& services_;
+  bool deviceViewport_ = false;
+  juce::Component controls_;
 
   ParamKnob input_;
   std::unique_ptr<InputModeButton> inputMode_;

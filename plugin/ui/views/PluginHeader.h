@@ -15,6 +15,7 @@ namespace t3k::ui {
 class PluginHeader : public juce::Component, private ChainStore::Listener, private ToneSession::Listener {
 public:
   static constexpr int kHeight = 64;
+  static constexpr int kDeviceHeight = 48;
 
   explicit PluginHeader(Services& services);
   ~PluginHeader() override;
@@ -22,6 +23,9 @@ public:
   PresetBar& presetBar() { return presetBar_; }
 
   void setTunerShown(bool shown);
+  // The Artemis surface uses actual logical display pixels, including a
+  // 780px-wide panel on a display advertising 2x scaling.
+  void setDeviceViewport(bool enabled);
 
   std::function<void(bool show)> onToggleTuner;
   std::function<void(bool stereo)> onStereoToggle;
@@ -41,9 +45,7 @@ private:
   Services& services_;
   juce::String avatarUrl_;
   std::unique_ptr<LogoLink> logo_;
-#if JUCE_LINUX && T3K_ARTEMIS_KIOSK
   IconButton artemisExit_{Icon::ArrowLeft, 36, 20};
-#endif
   PresetBar presetBar_;
   StereoModeToggle stereo_;
   IconButton tuner_;
@@ -51,6 +53,7 @@ private:
   IconButton redo_{Icon::Redo2, 28};
   AccountMenu account_;
   bool tunerShown_ = false;
+  bool deviceViewport_ = false;
 };
 
 }  // namespace t3k::ui

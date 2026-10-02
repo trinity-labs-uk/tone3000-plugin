@@ -24,6 +24,13 @@ GalleryTile::~GalleryTile() {
 
 TileDragHost* GalleryTile::host() { return findParentComponentOfClass<TileDragHost>(); }
 
+void GalleryTile::setTileSize(int size) {
+  size = juce::jmax(1, size);
+  if (size_ == size) return;
+  size_ = size;
+  setSize(size_, size_);
+}
+
 void GalleryTile::setTravelling(bool travelling) {
   if (travelling_ == travelling) return;
   travelling_ = travelling;

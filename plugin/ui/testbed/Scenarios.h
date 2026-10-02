@@ -27,6 +27,8 @@ struct Scenario {
   // Window zoom to lay the root out at (the grid holds 1x under it).
   double zoom() const { return static_cast<double>(data.getProperty("zoom", 1.0)); }
   bool deviceViewport() const { return static_cast<bool>(data.getProperty("deviceViewport", false)); }
+  int viewportWidth() const { return static_cast<int>(data.getProperty("deviceWidth", 1560)); }
+  int viewportHeight() const { return static_cast<int>(data.getProperty("deviceHeight", 720)); }
   juce::String driveId() const { return data.getProperty("drive", id).toString(); }
 };
 

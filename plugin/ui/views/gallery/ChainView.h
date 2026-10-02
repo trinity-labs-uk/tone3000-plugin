@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "GalleryLane.h"
+#include "GalleryGeometry.h"
 #include "GalleryTile.h"
 #include "StereoPanRail.h"
 #include "services/ChainStore.h"
@@ -32,6 +33,7 @@ public:
 
   explicit ChainView(Services& services);
   ~ChainView() override;
+  void setDeviceViewport(bool device);
 
   // Preset load / reset: back to the gallery at the left edge.
   void returnToGallery();
@@ -75,6 +77,8 @@ private:
   const ChainItem* itemIn(const Lanes& lanes, const std::string& id) const;
   bool stereo() const { return services_.chain.state().chainRight.has_value(); }
   int tileSize() const;
+  int laneGap() const { return deviceViewport_ ? 12 : gallery::kLaneGap; }
+  bool deviceViewport_ = false;
 
   // Drag machinery (pointer and keyboard share it).
   void beginSort(GalleryTile& tile, bool pointer);

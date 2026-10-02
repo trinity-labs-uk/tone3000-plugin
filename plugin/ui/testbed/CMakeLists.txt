@@ -54,6 +54,7 @@ target_sources(UiTestbed PRIVATE
     Scenarios.cpp
     SelfTests.h
     SelfTests.cpp
+    LayoutTests.cpp
 )
 
 target_compile_definitions(UiTestbed PRIVATE

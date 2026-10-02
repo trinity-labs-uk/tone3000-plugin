@@ -402,8 +402,12 @@ void PluginRoot::paint(juce::Graphics& g) { g.fillAll(theme::kBlack); }
 
 void PluginRoot::setDeviceViewport(juce::Rectangle<int> bounds) {
   deviceViewport_ = true;
+  header_.setDeviceViewport(true);
+  faceplate_.setDeviceViewport(true);
+  main_.chainScreen().gallery().setDeviceViewport(true);
   setTransform({});
   setBounds(bounds);
+  resized();
 }
 
 void PluginRoot::openSettings(SettingsScreen::Tab tab) {
@@ -444,16 +448,16 @@ void PluginRoot::resized() {
   const int columnH = deviceViewport_ ? getHeight() - slotH : design::kHeight + hintH;
   auto column = juce::Rectangle<int>(0, slotH, getWidth(), columnH);
   if (hintsVisible_) hintBar_.setBounds(column.removeFromBottom(hintH));
-  header_.setBounds(column.removeFromTop(PluginHeader::kHeight));
+  header_.setBounds(column.removeFromTop(deviceViewport_ ? PluginHeader::kDeviceHeight : PluginHeader::kHeight));
   if (browser_) browser_->setBounds(column);  // the rest, faceplate included
   if (signIn_) signIn_->setBounds(column);
-  faceplate_.setBounds(column.removeFromBottom(Faceplate::kHeight));
+  faceplate_.setBounds(column.removeFromBottom(deviceViewport_ ? Faceplate::kDeviceHeight : Faceplate::kHeight));
   main_.setBounds(column);
   if (tuner_) tuner_->setBounds(column);
 
   // The toast floats above the faceplate, measured from the overlay's bottom.
   const int belowColumn = getHeight() - (slotH + columnH);
-  toast_.setBottomOffset(belowColumn + design::kPlateHeight + hintH + kToastGap);
+  toast_.setBottomOffset(belowColumn + faceplate_.getHeight() + hintH + kToastGap);
 }
 
 }  // namespace t3k::ui

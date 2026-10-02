@@ -109,6 +109,17 @@ keeping the code visible on the display. The installed JACK server and audio
 device settings remain managed by Launchpad. Artemis' OS build wrapper passes
 the publishable key to CMake and targets the CM5's Cortex-A76 CPU.
 
+The device layout keeps the 13:6 panel aspect ratio at both 1560×720 and
+780×360 logical pixels. Its compact header, 75% control row, and smaller
+NAM/IR tiles leave room for both stereo lanes, including when pitch, gate,
+hints, or an audio warning are shown. Hosted plugin windows retain their
+existing sizing.
+
+With `T3K_BUILD_UI_TESTBED=ON`, `UiTestbed --selftest` checks the control and
+gallery bounds. `UiTestbed --capture /tmp/t3k-layout artemis-layout` renders
+the mono, stereo, branched, touch, and warning-banner regression fixtures.
+On Linux, run these under `xvfb-run -a` if no display is available.
+
 ### 4. Build the plugin
 
 ```sh

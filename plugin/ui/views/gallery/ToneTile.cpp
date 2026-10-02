@@ -137,16 +137,24 @@ void ToneTile::setHovered(bool hovered) {
 void ToneTile::resized() {
   const auto box = getLocalBounds();
   image_.setBounds(box);
-  dots_.setBounds(box.withSizeKeepingCentre(LoadingDots::kWidth, LoadingDots::kDot + 2 * LoadingDots::kMargin));
-  retry_.setBounds(box.withSizeKeepingCentre(retry_.getWidth(), retry_.getHeight()));
+  // On compact tiles, reserve the quick-action row before placing loading
+  // feedback. Its retry target must remain inside the tile and below power,
+  // swap and delete even when a banner reduces the stereo lane height.
+  const auto feedback = getWidth() <= 112 ? box.withTrimmedTop(kChromeHeight).reduced(4) : box;
+  dots_.setBounds(feedback.withSizeKeepingCentre(LoadingDots::kWidth, LoadingDots::kDot + 2 * LoadingDots::kMargin));
+  const float retryScale = std::max(0.05f, std::min({1.0f, feedback.getWidth() / float(retry_.getWidth()),
+                                                   feedback.getHeight() / float(retry_.getHeight())}));
+  retry_.setTransform(juce::AffineTransform::scale(retryScale));
+  retry_.setTopLeftPosition(juce::roundToInt(feedback.getCentreX() / retryScale - retry_.getWidth() / 2.0f),
+                            juce::roundToInt(feedback.getCentreY() / retryScale - retry_.getHeight() / 2.0f));
 
   chrome_.setBounds(box.withHeight(kChromeHeight));
   const int y = kChromePad;
-  power_.setBounds(kChromePad, y, theme::kIconBoxSize, theme::kIconBoxSize);
-  remove_.setBounds(getWidth() - kChromePad - theme::kIconBoxSize, y, theme::kIconBoxSize,
-                    theme::kIconBoxSize);
-  swap_.setBounds(remove_.getX() - kChromeGap - theme::kIconBoxSize, y, theme::kIconBoxSize,
-                  theme::kIconBoxSize);
+  const int gap = getWidth() < 112 ? 2 : kChromeGap;
+  const int size = std::max(1, std::min(theme::kIconBoxSize, (getWidth() - 2 * kChromePad - 2 * gap) / 3));
+  power_.setBounds(kChromePad, y, size, size);
+  remove_.setBounds(getWidth() - kChromePad - size, y, size, size);
+  swap_.setBounds(remove_.getX() - gap - size, y, size, size);
 
   ledSlot_.setTopLeftPosition(getWidth() - kLedInset - BlockLed::kSize,
                               getHeight() - kLedInset - BlockLed::kSize);

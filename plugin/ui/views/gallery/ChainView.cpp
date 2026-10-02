@@ -59,12 +59,13 @@ public:
   };
   std::optional<BranchLayout> branch;
   int tile = gallery::kTileSize;
+  int laneGap = gallery::kLaneGap;
 
   void paint(juce::Graphics& g) override {
     if (!branch) return;
     const float x = gallery::kEdgeFadeWidth + branch->tapGapX;
     const float topCentre = tile / 2.0f;
-    const float bottomCentre = tile + gallery::kLaneGap + tile / 2.0f;
+    const float bottomCentre = tile + laneGap + tile / 2.0f;
     const float stubY = branch->trunkSide == ChainSide::left ? bottomCentre : topCentre;
     const float w = gallery::kLineWidth;
     g.setColour(theme::kWhite);
@@ -108,7 +109,18 @@ ChainView::ChainView(Services& services)
 
 ChainView::~ChainView() { services_.chain.removeListener(this); }
 
-int ChainView::tileSize() const { return gallery::tileSize(stereo()); }
+int ChainView::tileSize() const {
+  const int desired = gallery::tileSize(stereo());
+  if (!deviceViewport_) return desired;
+  const int available = getHeight() - 12 - (stereo() ? laneGap() : 24);
+  return std::max(1, std::min(desired / 2, available / (stereo() ? 2 : 1)));
+}
+
+void ChainView::setDeviceViewport(bool device) {
+  if (deviceViewport_ == device) return;
+  deviceViewport_ = device;
+  resized();
+}
 
 // State
 void ChainView::chainChanged(const ChainState&) { syncFromNative(); }
@@ -173,11 +185,26 @@ const ChainItem* ChainView::itemIn(const Lanes& lanes, const std::string& id) co
 
 // Layout
 void ChainView::resized() {
-  auto area = getLocalBounds().reduced(kPadX, kPadY);
-  if (stereo()) rail_.setBounds(area.removeFromLeft(StereoPanRail::kWidth).withSizeKeepingCentre(
-      StereoPanRail::kWidth, rail_.getHeight()));
+  auto area = getLocalBounds().reduced(deviceViewport_ ? 12 : kPadX, deviceViewport_ ? 6 : kPadY);
+  if (deviceViewport_ && !stereo()) area.removeFromTop(24);  // Keep the title above the tiles.
+  if (stereo()) {
+    if (deviceViewport_) {
+      constexpr int railHeight = 240;
+      const float scale = std::max(0.05f, std::min(0.75f, area.getHeight() / float(railHeight)));
+      const auto slot = area.removeFromLeft(juce::roundToInt(StereoPanRail::kWidth * scale) + 4);
+      rail_.setTransform(juce::AffineTransform::scale(scale));
+      rail_.setSize(StereoPanRail::kWidth, railHeight);
+      rail_.setTopLeftPosition(juce::roundToInt(slot.getX() / scale),
+                              juce::roundToInt((slot.getCentreY() - railHeight * scale / 2) / scale));
+    } else {
+      rail_.setTransform({});
+      rail_.setBounds(area.removeFromLeft(StereoPanRail::kWidth).withSizeKeepingCentre(
+          StereoPanRail::kWidth, gallery::kStereoTileSize * 2 + gallery::kLaneGap));
+    }
+  }
   scroller_->setBounds(area);
-  layoutColumn();
+  if (left_.tileSize() != tileSize()) applyLanes();
+  else layoutColumn();
 }
 
 // Branched layout: the branch lane starts at the trunk's tap gap, so its row
@@ -196,6 +223,7 @@ void ChainView::layoutColumn() {
   }
   column_->branch = branch;
   column_->tile = tile;
+  column_->laneGap = laneGap();
 
   auto indentFor = [&](ChainSide side) {
     return branch && side != branch->trunkSide ? branch->indent : 0;
@@ -203,14 +231,14 @@ void ChainView::layoutColumn() {
   int content = left_.getWidth() + indentFor(ChainSide::left);
   if (stereo()) content = std::max(content, right_.getWidth() + indentFor(ChainSide::right));
   const int width = std::max(scroller_->getWidth(), content + 2 * gallery::kEdgeFadeWidth);
-  const int lanesHeight = stereo() ? tile * 2 + gallery::kLaneGap : tile;
+  const int lanesHeight = stereo() ? tile * 2 + laneGap() : tile;
   const int height = scroller_->getHeight();
-  const int lanesTop = (height - lanesHeight) / 2;
+  const int lanesTop = std::max(0, (height - lanesHeight) / 2);
   column_->setSize(width, height);
   column_->setLanesTop(lanesTop);
   left_.setTopLeftPosition(gallery::kEdgeFadeWidth + indentFor(ChainSide::left), lanesTop);
   right_.setTopLeftPosition(gallery::kEdgeFadeWidth + indentFor(ChainSide::right),
-                            lanesTop + tile + gallery::kLaneGap);
+                            lanesTop + tile + laneGap());
   column_->repaint();
 
   // Restore the persisted offset once the scroller has its size (an offset
@@ -238,7 +266,7 @@ void ChainView::paint(juce::Graphics& g) {
   // first tile (the lane's edge-fade inset).
   const auto font = Fonts::mono(kTitleSize);
   const int x = scroller_->getX() + gallery::kEdgeFadeWidth;
-  paint::text(g, "SIGNAL CHAIN", {x, kPadY, 300, juce::roundToInt(kTitleSize * 1.2f)}, font,
+  paint::text(g, "SIGNAL CHAIN", {x, deviceViewport_ ? 6 : kPadY, 300, juce::roundToInt(kTitleSize * 1.2f)}, font,
               theme::kWhite);
 }
 
@@ -356,7 +384,7 @@ void ChainView::tileDragMove(const juce::MouseEvent& e) {
   const int tile = tileSize();
   ChainSide side = ChainSide::left;
   if (stereo()) {
-    const int seam = left_.getBottom() + gallery::kLaneGap / 2;
+    const int seam = left_.getBottom() + laneGap() / 2;
     side = centre.y < seam ? ChainSide::left : ChainSide::right;
   }
   auto& target = lane(side);

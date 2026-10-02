@@ -41,6 +41,7 @@ public:
   ~DbMeter() override;
 
   void setStereo(bool stereo);
+  void setColumnHeight(int height);
   bool stereo() const { return columns_.size() == 2; }
   // Local centre of column `i`'s clip LED (testbed drives hover it).
   juce::Point<int> clipDotCentre(int column) const;

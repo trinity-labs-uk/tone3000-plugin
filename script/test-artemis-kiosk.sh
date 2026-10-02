@@ -63,7 +63,7 @@ x11.XFlush.argtypes = [ctypes.c_void_p]
 x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
 display = x11.XOpenDisplay(None)
 assert display, 'cannot open the Xvfb display'
-xtst.XTestFakeMotionEvent(display, -1, 210, 38, 0)
+xtst.XTestFakeMotionEvent(display, -1, 30, 24, 0)
 xtst.XTestFakeButtonEvent(display, 1, 1, 0)
 xtst.XTestFakeButtonEvent(display, 1, 0, 0)
 x11.XFlush(display)

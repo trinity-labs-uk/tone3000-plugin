@@ -39,6 +39,9 @@ public:
 
   const std::string& blockId() const { return blockId_; }
   int tileSize() const { return size_; }
+  // Resize the live component so a banner or viewport reflow keeps its
+  // pointer gesture, open menu and pending callbacks attached to this tile.
+  void setTileSize(int size);
   // The web dims a travelling tile (dnd-kit Feedback) to 0.75.
   void setTravelling(bool travelling);
   bool travelling() const { return travelling_; }

@@ -76,7 +76,7 @@ void GalleryLane::setItems(const std::vector<ChainItem>& items, int tileSize) {
     if (existing != tiles_.end()) {
       const bool sameKind = item.isInsert ? dynamic_cast<AddTile*>(existing->second.get()) != nullptr
                                           : dynamic_cast<ToneTile*>(existing->second.get()) != nullptr;
-      if (sameKind && existing->second->tileSize() == tile_) tile = std::move(existing->second);
+      if (sameKind) tile = std::move(existing->second);
       tiles_.erase(existing);
     }
     if (tile == nullptr) {
@@ -87,6 +87,7 @@ void GalleryLane::setItems(const std::vector<ChainItem>& items, int tileSize) {
       wire(*tile);
       addAndMakeVisible(*tile);
     }
+    tile->setTileSize(tile_);
     if (auto* add = dynamic_cast<AddTile*>(tile.get())) {
       add->setRouting(AddTile::routingFor(static_cast<int>(i), static_cast<int>(items_.size())));
       add->setCanPaste(canPaste_);
