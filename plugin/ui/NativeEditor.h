@@ -5,9 +5,9 @@
 // on request.
 //
 // The root is laid out in design space and scaled with one AffineTransform:
-// hosted windows and the Artemis standalone both retain that aspect ratio.
-// Artemis owns the complete 1560 x 720 display and centres the design within
-// it, so round and square artwork is never distorted.
+// hosted windows retain that aspect ratio. Artemis instead lays out across
+// the complete 1560 x 720 display at 1x, giving the chain more room while
+// round and square artwork keeps its native size.
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>

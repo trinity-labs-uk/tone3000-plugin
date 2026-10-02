@@ -1,5 +1,7 @@
 // Settings takeover (Settings.tsx): a full-window black page with a 480px
-// column (title + close, then the form) that scrolls as one. The standalone
+// column (title + close, then the form) that scrolls as one in a host. Wide
+// panels use three form columns beneath a pinned title / close and tabs.
+// The standalone
 // app adds a tab bar between System Settings (audio device + MIDI hardware;
 // first, because setup is the main abandon risk) and Plugin Settings; hosted
 // builds have one page and no tab bar. Mounted only while open, so page
@@ -25,6 +27,7 @@ public:
 
   static constexpr int kMaxWidth = 480;
   static constexpr int kPadTop = 28, kPadX = 24, kPadBottom = 40;
+  static constexpr int kWideMinWidth = 1100 + 2 * kPadX;
   static constexpr int kHeaderGap = 20, kTabBarGap = 28;
 
   // `initialTab` only matters in the standalone app (hosted = plugin page).

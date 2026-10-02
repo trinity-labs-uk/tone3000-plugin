@@ -2027,28 +2027,95 @@ struct ArtemisKeyboardTests : juce::UnitTest {
   }
 };
 ArtemisKeyboardTests artemisKeyboardTests;
+#endif
 
 struct ArtemisViewportTests : juce::UnitTest {
   ArtemisViewportTests() : juce::UnitTest("Artemis viewport", "ui") {}
   void runTest() override {
-    beginTest("the complete design fits the 1560 x 720 panel at one scale");
-    constexpr int contentHeight = design::kHeight + design::kHintHeight;
-    const auto fit = design::fitToDevice(1560, 720, contentHeight);
-    expectWithinAbsoluteError(contentHeight * fit.scale, 720.0, 0.001);
-    expect(design::kWidth * fit.scale <= 1560.0);
-    expectEquals(fit.y, 0);
-    expect(fit.x > 0, "the wider panel must be pillarboxed");
+    const auto fixtures = Fixtures::load(fixturesDir().getChildFile("scenarios.json"));
+    const auto* scenario = fixtures.find("artemis-main-mono");
+    if (scenario == nullptr) {
+      expect(false, "panel scenario missing");
+      return;
+    }
+    MockBackend backend(scenario->data);
+    ScaledHost host(backend, *scenario, fixtures.root);
+    auto& root = host.pluginRoot();
+    auto pump = [] { juce::MessageManager::getInstance()->runDispatchLoopUntil(60); };
+    pump();
 
-    beginTest("circular, square and logo geometry keeps its source aspect");
-    constexpr double sourceDiameter = 80.0;
-    constexpr double logoWidth = 210.0, logoHeight = 32.0;
-    expectWithinAbsoluteError(sourceDiameter * fit.scale, sourceDiameter * fit.scale, 0.001);
-    expectWithinAbsoluteError((logoWidth * fit.scale) / (logoHeight * fit.scale),
-                              logoWidth / logoHeight, 0.001);
+    beginTest("panel bounds are filled without a root transform or side bars");
+    expect(root.getBounds() == juce::Rectangle<int>(0, 0, 1560, 720));
+    expect(root.getTransform().isIdentity());
+    expectWithinAbsoluteError(root.services().zoom.factor(), 1.0, 0.001);
+    auto* plate = drive::find(root, [](juce::Component& c) { return dynamic_cast<Faceplate*>(&c) != nullptr; });
+    expect(plate != nullptr);
+    if (plate) {
+      expectEquals(plate->getWidth(), 1560);
+      expectEquals(plate->getBottom(), 720 - design::kHintHeight);
+    }
+
+    beginTest("hints reflow within the same panel rather than resize or scale it");
+    root.services().hints.setEnabled(false);
+    pump();
+    expect(root.getBounds() == host.getLocalBounds());
+    expect(root.getTransform().isIdentity());
+    if (plate) expectEquals(plate->getBottom(), 720);
+    root.services().hints.setEnabled(true);
+    pump();
+    if (plate) expectEquals(plate->getBottom(), 720 - design::kHintHeight);
+
+    beginTest("wide plugin settings use three columns and keep close above the scroll view");
+    root.openSettings(SettingsScreen::Tab::plugin);
+    auto* settings = root.settings();
+    expect(settings != nullptr);
+    if (!settings) return;
+    const auto sectionX = [&](const juce::String& title) {
+      auto* label = drive::find(*settings, [&](juce::Component& c) {
+        auto* formLabel = dynamic_cast<FormLabel*>(&c);
+        return formLabel != nullptr && formLabel->text() == title;
+      });
+      return label ? settings->getLocalArea(label, label->getLocalBounds()).getX() : -1;
+    };
+    const int interfaceX = sectionX("Show Info Bar"), processingX = sectionX("NAM A2 Size");
+    const int midiX = sectionX("MIDI Mapping");
+    expect(interfaceX >= 24 && processingX > interfaceX + 400 && midiX > processingX + 400);
+    auto* close = drive::find(*settings, [](juce::Component& c) { return c.getName() == "Close settings"; });
+    expect(close != nullptr);
+    if (close) {
+      if (auto* param = backend.parameter("calibrateInput")) param->setValueNotifyingHost(1.0f);
+      pump();
+      const auto before = settings->getLocalArea(close, close->getLocalBounds());
+      settings->viewport().setViewPosition(0, 300);
+      expect(settings->viewport().getViewPositionY() > 0, "the expanded settings actually scrolled");
+      expect(settings->getLocalArea(close, close->getLocalBounds()) == before);
+      expect(before.getBottom() < settings->viewport().getY());
+    }
+
+    beginTest("narrow settings keep their original single column");
+    settings->setSize(design::kWidth, design::kHeight);
+    expectEquals(sectionX("NAM A2 Size"), sectionX("MIDI Mapping"));
+
+    beginTest("system input and output controls occupy separate tracks beside MIDI");
+    const auto* systemScenario = fixtures.find("artemis-settings-system");
+    if (!systemScenario) {
+      expect(false, "system scenario missing");
+      return;
+    }
+    MockBackend systemBackend(systemScenario->data);
+    ScaledHost systemHost(systemBackend, *systemScenario, fixtures.root);
+    auto& systemRoot = systemHost.pluginRoot();
+    systemRoot.openSettings(SettingsScreen::Tab::system);
+    auto* systemSettings = systemRoot.settings();
+    const auto fieldX = [&](const juce::String& fieldName) {
+      auto* field = drive::find(*systemSettings, [&](juce::Component& c) { return c.getName() == fieldName; });
+      return field ? systemSettings->getLocalArea(field, field->getLocalBounds()).getX() : -1;
+    };
+    const int inputX = fieldX("Input device"), outputX = fieldX("Output device");
+    expect(inputX >= 24 && outputX > inputX + 400);
   }
 };
 ArtemisViewportTests artemisViewportTests;
-#endif
 
 HtmlTests htmlTests;
 FontTests fontTests;

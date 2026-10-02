@@ -233,6 +233,12 @@ PluginSettingsPage::PluginSettingsPage(Services& services)
   };
   add(footer_);
 
+  // Appearance, sound quality, and controller / maintenance settings each
+  // get their own column on the Artemis panel.
+  setWideColumns({{{&infoBar_, &showGate_, &showPitch_, &blockSize_, &normalize_}},
+                  {{&namSize_, &calibration_, &oversampling_, &multiCore_}},
+                  {{&midi_, &presets_, &diagnostics_, &footer_}}});
+
   for (auto* p : {&calibrateParam_, &dbuParam_, &osEnabledParam_, &osFactorParam_})
     p->onChange = [this] { syncParams(); };
   services_.prefs.addListener(this);

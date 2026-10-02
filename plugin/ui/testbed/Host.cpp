@@ -63,6 +63,7 @@ juce::File fixturesDir() { return juce::File(T3K_TESTBED_FIXTURES); }
 
 ScaledHost::ScaledHost(Backend& backend, const Scenario& scenario, const juce::var& fixtures)
     : zoom_(scenario.zoom()),
+      deviceViewport_(scenario.deviceViewport()),
       session(scenario.data, fixtures),
       services(backend, session, *this, prefs, /*updateNotice=*/true) {
   seedPrefs(prefs, scenario, fixtures);
@@ -80,11 +81,17 @@ ScaledHost::ScaledHost(Backend& backend, const Scenario& scenario, const juce::v
   root = std::make_unique<PluginRoot>(services);
   addAndMakeVisible(*root);
   setVisible(true);  // offscreen captures have no window to make us visible
-  setSize(juce::roundToInt(design::kWidth * zoom_), juce::roundToInt(root->designHeight() * zoom_));
+  setSize(deviceViewport_ ? design::kArtemisWidth : juce::roundToInt(design::kWidth * zoom_),
+          deviceViewport_ ? design::kArtemisHeight : juce::roundToInt(root->designHeight() * zoom_));
   resized();  // the root's chrome report already sized us; fit it now that it exists
 }
 
 void ScaledHost::setExtraContentHeight(int total, int) {
+  if (deviceViewport_) {
+    setSize(design::kArtemisWidth, design::kArtemisHeight);
+    resized();
+    return;
+  }
   if (auto* window = findParentComponentOfClass<juce::DocumentWindow>()) {
     const double scale = getWidth() / static_cast<double>(design::kWidth);
     window->setContentComponentSize(juce::roundToInt(design::kWidth * scale),
@@ -97,6 +104,11 @@ void ScaledHost::setExtraContentHeight(int total, int) {
 
 void ScaledHost::resized() {
   if (root == nullptr) return;
+  if (deviceViewport_) {
+    services.zoom.set(1.0);
+    root->setDeviceViewport(getLocalBounds());
+    return;
+  }
   const double scale = juce::jmax(0.05, juce::jmin(getWidth() / double(design::kWidth),
                                                    getHeight() / double(root->designHeight())));
   root->setTransform(juce::AffineTransform::scale(static_cast<float>(scale)));

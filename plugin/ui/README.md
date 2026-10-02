@@ -67,6 +67,11 @@ capture table flags ids whose drive is missing. The fixtures are the
 testbed's own and are edited in place (`fixtures/img` holds the artwork the
 mock image host serves).
 
+The `artemis-*` captures use a fixed 1560 x 720 viewport at 1x. Their
+fixtures `extends` an earlier scenario, overriding nested state as needed;
+`drive` reuses that scenario's interaction steps. Capture them with
+`$UI --capture /tmp/t3k-artemis artemis-`.
+
 ### Visual regression
 
 Captures are compared against captures, before a change and after it:
@@ -91,7 +96,8 @@ against are reviewed by eye against the Figma mockups.
 ```
 plugin/ui/
   NativeEditor.*      AudioProcessorEditor: owns UiPrefs, HttpClient, Tone3000Session,
-                      Services, PluginRoot; scales the 1024-wide design space
+                      Services, PluginRoot; scales the hosted design space,
+                      or lays out directly across the Artemis panel at 1x
   NativeUi.cmake      t3k_add_native_ui(<target>), T3kConfig.h, embedded assets
   assets/             Roboto Mono, Arimo (Arial stand-in), brand SVGs (UiBinaryData)
   core/               no JUCE components: Theme, Fonts, Icons (+ generated
@@ -153,10 +159,12 @@ from (`port of KnobControl.tsx`); that is lineage, recorded in
 
 ## Conventions
 
-- **Design space.** Everything is laid out in the 1024 × 578 design box;
-  `NativeEditor` applies one uniform `AffineTransform`. Artemis centres that
-  box in its full-screen 1560 × 720 viewport, while all plugin windows retain
-  the design aspect ratio. Never scale by hand. The one
+- **Design space.** Hosted editors use the 1024 × 578 design box with one
+  uniform `AffineTransform`. The Artemis standalone uses its full
+  1560 × 720 viewport directly at 1x: the chain and browser gain horizontal
+  room, the faceplate spreads its groups, and settings reflow into three
+  columns beneath a pinned header. Banners and hints consume space inside
+  the panel. Never scale individual artwork to change its aspect ratio. The one
   view that holds its size on screen instead (the tone browser's body, so a
   bigger window shows more results) counter-scales by `Services::zoom`, the
   factor the shell publishes on every fit; a `Popover` adopts its anchor's

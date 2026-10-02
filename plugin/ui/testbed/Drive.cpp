@@ -174,6 +174,9 @@ void openSettings(PluginRoot& root) {
   // Exact name: banner actions like "Open Settings" would substring-match too.
   if (auto* settings = buttonNamed(root, "Settings")) click(root, *settings);
   wait(200);
+  // Hosted fixtures have one page; panel variants also need to select it
+  // explicitly because the standalone starts on System Settings.
+  if (auto* tab = buttonNamed(root, "Plugin Settings")) click(root, *tab);
   unhover(root);
 }
 

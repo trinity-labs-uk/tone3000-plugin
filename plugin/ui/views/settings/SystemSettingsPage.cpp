@@ -275,6 +275,14 @@ SystemSettingsPage::SystemSettingsPage(Services& services)
   add(midiInputs_);
   setTrailing(form::kSectionGap);
 
+  // The interface card occupies two tracks: source controls on the left,
+  // output / timing on the right. Monitoring and MIDI use the third track.
+  group_.content().setWideColumns({{{&driver_, &inputDevice_, &linkedDevice_, &channels_}},
+                                   {{&output_, &outputPairs_, &buffer_, &rate_, &driverSettings_}}},
+                                  850, 32, form::kControlGap);
+  setWideColumns({{{&micDenied_, &inlineError_, &group_}, 2},
+                  {{&hearYourself_, &midiInputs_}}});
+
   dev.addListener(this);
   sync();
 }

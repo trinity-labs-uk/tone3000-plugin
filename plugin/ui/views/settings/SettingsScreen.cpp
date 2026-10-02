@@ -119,17 +119,17 @@ SettingsScreen::SettingsScreen(Services& services, Tab initialTab)
   header_->close_.onClick = [this] {
     if (onClose) onClose();
   };
-  stack_.add(*header_);
+  content_.addAndMakeVisible(*header_);
   if (standalone_) {
     tabBar_ = std::make_unique<TabBar>();
     tabBar_->system_.onClick = [this] { setTab(Tab::system); };
     tabBar_->plugin_.onClick = [this] { setTab(Tab::plugin); };
-    stack_.add(*tabBar_, kHeaderGap);
+    content_.addAndMakeVisible(*tabBar_);
     system_ = std::make_unique<SystemSettingsPage>(services);
-    stack_.add(*system_, kTabBarGap);
-    stack_.add(plugin_, kTabBarGap);
+    stack_.add(*system_);
+    stack_.add(plugin_);
   } else {
-    stack_.add(plugin_, kHeaderGap);
+    stack_.add(plugin_);
   }
   content_.addAndMakeVisible(stack_);
 
@@ -146,6 +146,7 @@ void SettingsScreen::setTab(Tab tab) {
   if (tabBar_) tabBar_->setSelected(tab_);
   if (system_) stack_.setShown(*system_, tab_ == Tab::system);
   stack_.setShown(plugin_, tab_ == Tab::plugin);
+  viewport_.setViewPosition(0, 0);
 }
 
 void SettingsScreen::scrollToHeading(const juce::String& label, bool centre) {
@@ -167,22 +168,41 @@ void SettingsScreen::scrollToHeading(const juce::String& label, bool centre) {
 }
 
 juce::Rectangle<int> SettingsScreen::columnBounds() const {
-  const int width = juce::jmin(kMaxWidth, getWidth());
+  const int width = getWidth() >= kWideMinWidth ? getWidth() : juce::jmin(kMaxWidth, getWidth());
   return {(getWidth() - width) / 2, 0, width, 0};
 }
 
 void SettingsScreen::layoutColumn() {
   const auto column = columnBounds().reduced(kPadX, 0);
+  const bool wide = getWidth() >= kWideMinWidth;
+  auto& headerParent = wide ? static_cast<juce::Component&>(*this) : content_;
+  if (header_->getParentComponent() != &headerParent) headerParent.addAndMakeVisible(*header_);
+  if (tabBar_ && tabBar_->getParentComponent() != &headerParent) headerParent.addAndMakeVisible(*tabBar_);
+
+  int top = kPadTop;
+  header_->setBounds(column.withY(top).withHeight(Header::kHeight));
+  top += Header::kHeight;
+  if (tabBar_) {
+    top += kHeaderGap;
+    tabBar_->setBounds(column.withY(top).withWidth(wide ? kMaxWidth : column.getWidth())
+                           .withHeight(TabBar::kHeight));
+    top += TabBar::kHeight + kTabBarGap;
+  } else {
+    top += kHeaderGap;
+  }
+
+  // Only the form scrolls on a wide display; header and close stay in reach.
+  viewport_.setBounds(wide ? getLocalBounds().withTrimmedTop(top) : getLocalBounds());
   const int stackH = juce::roundToInt(stack_.heightFor(static_cast<float>(column.getWidth())));
-  const int contentH = juce::jmax(getHeight(), kPadTop + stackH + kPadBottom);
+  const int stackTop = wide ? 0 : top;
+  const int contentH = juce::jmax(viewport_.getHeight(), stackTop + stackH + kPadBottom);
   content_.setSize(getWidth(), contentH);
-  stack_.setBounds(column.getX(), kPadTop, column.getWidth(), stackH);
+  stack_.setBounds(column.getX(), stackTop, column.getWidth(), stackH);
 }
 
 void SettingsScreen::paint(juce::Graphics& g) { g.fillAll(theme::kBlack); }
 
 void SettingsScreen::resized() {
-  viewport_.setBounds(getLocalBounds());
   layoutColumn();
 }
 

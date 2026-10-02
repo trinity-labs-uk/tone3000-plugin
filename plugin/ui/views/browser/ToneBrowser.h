@@ -55,7 +55,6 @@ public:
   // column for its edge fades, so the chips fade out right at the window's
   // edge.
   static constexpr int kPadX = FilterBar::kBleed;
-  static constexpr int kColumnWidth = design::kWidth - 2 * kPadX;
   static constexpr int kGridGap = 16;
   // The grid goes three-up once each card can be this wide (screen px):
   // 340 leaves the text column 188px beside the 112px image, room for a

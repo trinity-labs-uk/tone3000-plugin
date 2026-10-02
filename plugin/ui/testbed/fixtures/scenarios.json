@@ -31407,6 +31407,119 @@
    "banner": false,
    "auth": false,
    "hasDrive": false
+  },
+  {
+   "id": "artemis-main-mono",
+   "extends": "main-mono",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "main-mono",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-main-stereo",
+   "extends": "main-stereo",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "main-stereo",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-main-stereo-branched",
+   "extends": "main-stereo-branched",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "main-stereo-branched",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-main-detail",
+   "extends": "main-detail",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "main-detail",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-main-tuner-intune",
+   "extends": "main-tuner-intune",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "main-tuner-intune",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-browser-search",
+   "extends": "browser-search",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "browser-search",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-settings-plugin",
+   "extends": "settings-plugin",
+   "localStorage": {
+    "t3k.updateNotice": "{\"snoozeUntil\":4102444800000}"
+   },
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "settings-plugin",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-settings-advanced",
+   "extends": "settings-advanced",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "settings-advanced",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-settings-midi-picker",
+   "extends": "settings-midi-picker",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "settings-midi-picker",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-settings-system",
+   "extends": "settings-system",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "settings-system",
+   "chain": {
+    "standalone": true
+   }
+  },
+  {
+   "id": "artemis-settings-system-feedback-risk",
+   "extends": "settings-system-feedback-risk",
+   "section": "Artemis 1560 x 720",
+   "deviceViewport": true,
+   "drive": "settings-system-feedback-risk",
+   "chain": {
+    "standalone": true
+   }
   }
  ]
 }

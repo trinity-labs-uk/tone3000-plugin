@@ -1,7 +1,5 @@
-// The fixed design space every native component is laid out in (port of
-// useUiScale.ts constants). One unit here is one design px; the
-// editor scales the whole root with a single AffineTransform, so components
-// never see the window size.
+// Hosted windows use the original design space. The Artemis standalone
+// lays out directly in panel pixels, with no transform on the root.
 #pragma once
 
 #include <algorithm>
@@ -20,20 +18,8 @@ inline constexpr int kWidth = 1024;
 // Core UI height (content only; Figma's 600 includes a 22px mock title bar).
 inline constexpr int kHeight = 578;
 
-// Fit the design into a fixed device viewport without changing its aspect
-// ratio. The viewport itself still fills the display; any spare area becomes
-// an even black letterbox around the UI rather than stretching its artwork.
-struct DeviceFit {
-  double scale;
-  int x;
-  int y;
-};
-inline DeviceFit fitToDevice(int width, int height, int contentHeight) {
-  const double scale = std::min(width / static_cast<double>(kWidth),
-                                height / static_cast<double>(contentHeight));
-  return {scale, static_cast<int>(std::lround((width - kWidth * scale) / 2.0)),
-          static_cast<int>(std::lround((height - contentHeight * scale) / 2.0))};
-}
+inline constexpr int kArtemisWidth = 1560;
+inline constexpr int kArtemisHeight = 720;
 
 // Chrome strips that grow the window instead of squishing the core.
 inline constexpr int kBannerHeight = 44;   // AppBanner.tsx

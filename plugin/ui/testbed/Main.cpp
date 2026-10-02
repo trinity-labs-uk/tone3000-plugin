@@ -37,7 +37,7 @@ public:
     setUsingWindowsMultiTouch(true);  // touch arrives live, as in the plugin (see NativeEditor.h)
     setContentNonOwned(&host, true);
     setResizable(true, false);
-    getConstrainer()->setFixedAspectRatio(design::kWidth / double(host.getHeight()));
+    getConstrainer()->setFixedAspectRatio(host.getWidth() / double(host.getHeight()));
     centreWithSize(host.getWidth(), host.getHeight());
     setVisible(true);
   }
@@ -59,7 +59,7 @@ juce::Image captureScenario(const Scenario& scenario, const juce::var& fixtures,
 
   auto* mm = juce::MessageManager::getInstance();
   mm->runDispatchLoopUntil(500);  // let the first async loads (images, chain) land
-  if (const auto* drive = driveFor(scenario.id)) {
+  if (const auto* drive = driveFor(scenario.driveId())) {
     (*drive)(root, backend);
   } else if (scenario.hasDrive) {
     driveMissing = true;

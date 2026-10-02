@@ -2,7 +2,7 @@
 // tuner takeover), faceplate (the tone browser and the sign-in screen take
 // over both), hint bar, and the overlay layer for popovers, the toast,
 // banners and modals. Laid out in design space
-// (1024 x 578 + chrome strips); the shell scales the whole thing.
+// (1024 x 578 + chrome strips) in a host, or in panel pixels on Artemis.
 //
 // The chrome strips grow the window instead of squishing the 578px core, so
 // the banner's arrival is choreographed against the window resize
@@ -69,6 +69,10 @@ public:
   // Current design-space height: the core plus whatever chrome strips show.
   int designHeight() const { return getHeight(); }
 
+  // A fixed display consumes chrome within its bounds and reflows the
+  // content, instead of growing or scaling the original design box.
+  void setDeviceViewport(juce::Rectangle<int> bounds);
+
   Services& services() { return services_; }
   juce::Component& overlayLayer() override { return overlay_; }
   // Everything under the overlay layer, for the modals' blurred scrims.
@@ -103,6 +107,7 @@ public:
   std::unique_ptr<juce::ComponentTraverser> createKeyboardFocusTraverser() override;
 
 private:
+  bool deviceViewport_ = false;
   enum class BannerPhase { hidden, waiting, shown };
 
   void hintChanged() override;

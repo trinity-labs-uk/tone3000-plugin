@@ -11,6 +11,24 @@
 
 namespace t3k::ui::testbed {
 
+namespace {
+// Capture variants inherit an earlier fixture and override only the state
+// relevant to that screen, including individual nested chain properties.
+void mergeFixture(juce::var& target, const juce::var& overrides) {
+  if (auto* properties = overrides.getDynamicObject()) {
+    for (const auto& [name, value] : properties->getProperties()) {
+      auto current = target[name];
+      if (current.isObject() && value.isObject()) {
+        mergeFixture(current, value);
+        target.getDynamicObject()->setProperty(name, current);
+      } else {
+        target.getDynamicObject()->setProperty(name, value.clone());
+      }
+    }
+  }
+}
+}  // namespace
+
 Fixtures Fixtures::load(const juce::File& scenariosJson) {
   Fixtures f;
   f.root = juce::JSON::parse(scenariosJson);
@@ -18,8 +36,13 @@ Fixtures Fixtures::load(const juce::File& scenariosJson) {
     for (const auto& entry : *arr) {
       Scenario s;
       s.id = entry["id"].toString();
-      s.data = entry;
-      s.hasDrive = static_cast<bool>(entry.getProperty("hasDrive", false));
+      if (const auto* base = f.find(entry["extends"].toString())) {
+        s.data = base->data.clone();
+        mergeFixture(s.data, entry);
+      } else {
+        s.data = entry;
+      }
+      s.hasDrive = static_cast<bool>(s.data.getProperty("hasDrive", false));
       f.scenarios.push_back(std::move(s));
     }
   }

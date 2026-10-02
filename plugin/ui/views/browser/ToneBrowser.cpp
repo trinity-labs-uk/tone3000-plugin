@@ -369,7 +369,7 @@ void ToneBrowser::paint(juce::Graphics& g) { g.fillAll(theme::kBlack); }
 void ToneBrowser::resized() {
   // Design space: the ← row, and the box the body fills under it.
   const int w = getWidth();
-  const int colW = std::min(kColumnWidth, w);
+  const int colW = std::max(0, w - 2 * kPadX);
   back_.setTopLeftPosition((w - colW) / 2, kPadTop);
   signInBack_.setTopLeftPosition((w - colW) / 2, kPadTop);
   const int top = kPadTop + BackLink::kHeight;
@@ -383,11 +383,11 @@ void ToneBrowser::resized() {
   layoutBody();
 }
 
-// Screen pixels from here down. The column under the ← row is kColumnWidth
-// design px wide: that times the zoom.
+// Screen pixels from here down. The column fills the available width,
+// leaving the same design-space padding under the zoom.
 void ToneBrowser::layoutBody() {
   const int w = body_->getWidth(), h = body_->getHeight();
-  const int colW = std::min(juce::roundToInt(kColumnWidth * zoom()), w);
+  const int colW = std::max(0, w - juce::roundToInt(2 * kPadX * zoom()));
   const int colX = (w - colW) / 2;
   int y = 0;
   if (search_.isVisible()) {
@@ -424,7 +424,7 @@ void ToneBrowser::paintScrollFades(juce::Graphics& g) {
 void ToneBrowser::layoutContent() {
   const int w = scroller_->getWidth();
   if (w <= 0) return;
-  const int colW = std::min(juce::roundToInt(kColumnWidth * zoom()), w);
+  const int colW = std::max(0, w - juce::roundToInt(2 * kPadX * zoom()));
   const int colX = (w - colW) / 2;
   int y = 0;
 

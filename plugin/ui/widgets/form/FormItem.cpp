@@ -68,7 +68,48 @@ void FormStack::setTrailing(float trailing) {
   heightChanged();
 }
 
+void FormStack::setWideColumns(std::vector<WideColumn> columns, float minWidth,
+                              float columnGap, float rowGap) {
+  wideColumns_ = std::move(columns);
+  wideMinWidth_ = minWidth;
+  columnGap_ = columnGap;
+  wideRowGap_ = rowGap;
+  itemHeightChanged();
+}
+
+float FormStack::trackWidth(float width) const {
+  int tracks = 0;
+  for (const auto& column : wideColumns_) tracks += column.span;
+  return (width - columnGap_ * (tracks - 1)) / static_cast<float>(tracks);
+}
+
+float FormStack::layoutColumns(float width, bool place) const {
+  const float track = trackWidth(width);
+  float x = 0, tallest = 0;
+  for (const auto& column : wideColumns_) {
+    const float columnWidth = column.span * track + (column.span - 1) * columnGap_;
+    float y = 0;
+    bool first = true;
+    for (auto* item : column.items) {
+      if (item->getParentComponent() != this || !item->isVisible()) continue;
+      y += first ? 0 : wideRowGap_;
+      const float h = item->heightFor(columnWidth);
+      if (place) placeChild(*item, {x, y, columnWidth, h});
+      y += h;
+      first = false;
+    }
+    tallest = std::max(tallest, y);
+    x += columnWidth + columnGap_;
+  }
+  return tallest + trailing_;
+}
+
 float FormStack::heightFor(float width) const {
+  if (usesColumns(width)) {
+    // Measuring follows exactly the same flow as placement; it changes no
+    // components when place is false.
+    return layoutColumns(width, false);
+  }
   float y = 0;
   bool first = true;
   for (const auto& e : entries_) {
@@ -81,6 +122,22 @@ float FormStack::heightFor(float width) const {
 
 float FormStack::topOf(const FormItem& item) const {
   const auto width = static_cast<float>(getWidth());
+  if (usesColumns(width)) {
+    const float track = trackWidth(width);
+    for (const auto& column : wideColumns_) {
+      const float columnWidth = column.span * track + (column.span - 1) * columnGap_;
+      float y = 0;
+      bool first = true;
+      for (const auto* child : column.items) {
+        if (child->getParentComponent() != this || !child->isVisible()) continue;
+        y += first ? 0 : wideRowGap_;
+        if (child == &item) return y;
+        y += child->heightFor(columnWidth);
+        first = false;
+      }
+    }
+    return -1;
+  }
   float y = 0;
   bool first = true;
   for (const auto& e : entries_) {
@@ -95,6 +152,10 @@ float FormStack::topOf(const FormItem& item) const {
 
 void FormStack::resized() {
   const auto width = static_cast<float>(getWidth());
+  if (usesColumns(width)) {
+    layoutColumns(width, true);
+    return;
+  }
   float y = 0;
   bool first = true;
   for (const auto& e : entries_) {

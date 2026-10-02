@@ -66,6 +66,16 @@ public:
   // Space after the last item (a trailing margin-bottom).
   void setTrailing(float trailing);
 
+  // At wider viewports, place related sections in parallel columns. A span
+  // reserves several equal tracks (the audio card uses two beside MIDI).
+  // The original entry order remains the layout on smaller windows.
+  struct WideColumn {
+    std::vector<FormItem*> items;
+    int span = 1;
+  };
+  void setWideColumns(std::vector<WideColumn> columns, float minWidth = 1100,
+                      float columnGap = 32, float rowGap = 24);
+
   // Show / hide an item (hidden items take no space) and re-flow.
   void setShown(FormItem& item, bool shown);
 
@@ -88,6 +98,11 @@ private:
     float marginTop;
   };
   std::vector<Entry> entries_;
+  std::vector<WideColumn> wideColumns_;
+  float wideMinWidth_ = 1100, columnGap_ = 32, wideRowGap_ = 24;
+  bool usesColumns(float width) const { return !wideColumns_.empty() && width >= wideMinWidth_; }
+  float trackWidth(float width) const;
+  float layoutColumns(float width, bool place) const;
   float gap_;
   float trailing_ = 0;
 };

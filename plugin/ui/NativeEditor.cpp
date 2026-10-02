@@ -10,8 +10,6 @@ namespace t3k::ui {
 namespace {
 #if JUCE_LINUX && T3K_ARTEMIS_KIOSK
 bool artemisStandalone() { return StandaloneAudioSettings::isAvailable(); }
-constexpr int kArtemisDisplayWidth = 1560;
-constexpr int kArtemisDisplayHeight = 720;
 #else
 bool artemisStandalone() { return false; }
 #endif
@@ -118,9 +116,9 @@ NativeEditor::NativeEditor(TONE3000Processor& owner)
   setResizable(false, false);
 #else
   if (artemisStandalone()) {
-    // The editor owns the complete 1560 x 720 panel. fitRoot preserves the
-    // design aspect ratio inside it, leaving black side bars where needed.
-    setSize(kArtemisDisplayWidth, kArtemisDisplayHeight);
+    // Lay out in the panel's pixels; extra width belongs to the chain and
+    // control spacing, rather than a scale transform or side bars.
+    setSize(design::kArtemisWidth, design::kArtemisHeight);
     setResizable(false, false);
   } else {
   setResizable(true, true);
@@ -209,10 +207,8 @@ void NativeEditor::setExtraContentHeight(int total, int persistent) {
 void NativeEditor::fitRoot() {
 #if JUCE_LINUX && T3K_ARTEMIS_KIOSK
   if (artemisStandalone()) {
-    const auto fit = design::fitToDevice(getWidth(), getHeight(), designHeight());
-    root_.setTransform(juce::AffineTransform::scale(static_cast<float>(fit.scale)));
-    root_.setTopLeftPosition(fit.x, fit.y);
-    services_.zoom.set(fit.scale);
+    services_.zoom.set(1.0);
+    root_.setDeviceViewport(getLocalBounds());
     return;
   }
 #endif
