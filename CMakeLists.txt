@@ -145,13 +145,19 @@ if (UNIX AND NOT APPLE AND NOT HEADLESS)
     message(STATUS "FreeType 2.13.3 linked statically into the Linux GUI targets (fontconfig stays dynamic)")
 endif()
 
-# Download JUCE using CPM
+# JUCE is patched below at configure time. Keep each version in its own
+# checkout: FetchContent cannot safely stash a patched 9.0.1 tree and replay
+# it while switching to 9.0.3. Once populated, keep this checkout at its
+# pinned tag so reconfiguring cannot rebase the generated patches either.
+set(T3K_JUCE_VERSION 9.0.3)
+set(T3K_JUCE_SOURCE_DIR "${LIB_DIR}/juce-${T3K_JUCE_VERSION}")
+set(FETCHCONTENT_UPDATES_DISCONNECTED_JUCE ON)
 CPMAddPackage(
     NAME JUCE
-    GIT_TAG 9.0.3
-    VERSION 9.0.3
+    GIT_TAG ${T3K_JUCE_VERSION}
+    VERSION ${T3K_JUCE_VERSION}
     GITHUB_REPOSITORY juce-framework/JUCE
-    SOURCE_DIR ${LIB_DIR}/juce
+    SOURCE_DIR ${T3K_JUCE_SOURCE_DIR}
 )
 
 # JUCE source patches (idempotent, configure time; JUCE lives in the
@@ -170,7 +176,7 @@ CPMAddPackage(
 # patch, same rationale as the patches above; applied on every platform
 # (the file only compiles on macOS, patching it elsewhere is harmless and
 # keeps the libs/juce tree identical everywhere).
-set(_juce_threads_mac "${LIB_DIR}/juce/modules/juce_core/native/juce_Threads_mac.mm")
+set(_juce_threads_mac "${T3K_JUCE_SOURCE_DIR}/modules/juce_core/native/juce_Threads_mac.mm")
 if (EXISTS "${_juce_threads_mac}")
     file(READ "${_juce_threads_mac}" _juce_threads_mac_src)
     if (NOT _juce_threads_mac_src MATCHES "T3K_RT_START_STALE_HANDLE")
@@ -217,7 +223,7 @@ endif()
 # saved device and cleared once a live device confirms the open
 # (StandaloneAudioSettings::markAudioInitClean). If it's still present next
 # launch, last open crashed and we boot on the default device instead.
-set(_juce_standalone_h "${LIB_DIR}/juce/modules/juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h")
+set(_juce_standalone_h "${T3K_JUCE_SOURCE_DIR}/modules/juce_audio_plugin_client/Standalone/juce_StandaloneFilterWindow.h")
 if (EXISTS "${_juce_standalone_h}")
     file(READ "${_juce_standalone_h}" _juce_standalone_src)
     # Preserve whatever line ending JUCE shipped with (CRLF on some checkouts).
@@ -362,7 +368,7 @@ endif()
 # store in the same folder is named preferences.settings (see
 # ProcessorState.cpp), so the two files cannot collide. Idempotent
 # configure-time patch, same rationale as the patches above.
-set(_juce_standalone_cpp "${LIB_DIR}/juce/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp")
+set(_juce_standalone_cpp "${T3K_JUCE_SOURCE_DIR}/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp")
 if (EXISTS "${_juce_standalone_cpp}")
     file(READ "${_juce_standalone_cpp}" _juce_standalone_cpp_src)
     if (NOT _juce_standalone_cpp_src MATCHES "T3K_SETTINGS_IN_APP_FOLDER")
@@ -475,7 +481,7 @@ endif()
 # (the rate the chains run at); the buffer default is the device's own, as
 # upstream. Idempotent configure-time patch, same rationale as the patches
 # above. Cross-platform file, so this applies everywhere.
-set(_juce_adm_cpp "${LIB_DIR}/juce/modules/juce_audio_devices/audio_io/juce_AudioDeviceManager.cpp")
+set(_juce_adm_cpp "${T3K_JUCE_SOURCE_DIR}/modules/juce_audio_devices/audio_io/juce_AudioDeviceManager.cpp")
 if (EXISTS "${_juce_adm_cpp}")
     file(READ "${_juce_adm_cpp}" _juce_adm_src)
     if (NOT _juce_adm_src MATCHES "T3K_AUDIO_DEFAULT_SETUP")
@@ -534,7 +540,7 @@ endif()
 # https://github.com/juce-framework/JUCE/pull/1707 (unmerged as of this
 # writing); drop this patch once it lands. Idempotent configure-time patch,
 # same rationale as the patches above.
-set(_juce_alsa_cpp "${LIB_DIR}/juce/modules/juce_audio_devices/native/juce_ALSA_linux.cpp")
+set(_juce_alsa_cpp "${T3K_JUCE_SOURCE_DIR}/modules/juce_audio_devices/native/juce_ALSA_linux.cpp")
 if (EXISTS "${_juce_alsa_cpp}")
     file(READ "${_juce_alsa_cpp}" _juce_alsa_src)
     if (NOT _juce_alsa_src MATCHES "T3K_ALSA_CLOSE_STUCK_TIMEOUT")
@@ -587,7 +593,7 @@ endif()
 # writing); drop this patch once it lands. Idempotent configure-time patch,
 # same rationale as the patches above. Cross-platform file, so this applies
 # everywhere.
-set(_juce_adm_cpp2 "${LIB_DIR}/juce/modules/juce_audio_devices/audio_io/juce_AudioDeviceManager.cpp")
+set(_juce_adm_cpp2 "${T3K_JUCE_SOURCE_DIR}/modules/juce_audio_devices/audio_io/juce_AudioDeviceManager.cpp")
 if (EXISTS "${_juce_adm_cpp2}")
     file(READ "${_juce_adm_cpp2}" _juce_adm_src2)
     if (NOT _juce_adm_src2 MATCHES "T3K_CALLBACK_ENFORCER_NULL_SAFE")
@@ -698,7 +704,7 @@ endif()
 # constrainRect (the same pass AppKit resizing uses) and compare sizes with
 # tolerance instead. The zoomed frame keeps the window's top-left corner and
 # is clamped on-screen.
-set(_juce_peer_mm "${LIB_DIR}/juce/modules/juce_gui_basics/native/juce_NSViewComponentPeer_mac.mm")
+set(_juce_peer_mm "${T3K_JUCE_SOURCE_DIR}/modules/juce_gui_basics/native/juce_NSViewComponentPeer_mac.mm")
 if (EXISTS "${_juce_peer_mm}")
     file(READ "${_juce_peer_mm}" _juce_peer_src)
     if (NOT _juce_peer_src MATCHES "T3K_ZOOM_TOGGLE")
@@ -789,7 +795,7 @@ endif()
 # The file ships with CRLF line endings; file(READ) normalizes them to LF,
 # so the anchor matches as written and the patched file is written back
 # LF-only.
-set(_juce_x11_cpp "${LIB_DIR}/juce/modules/juce_gui_basics/native/juce_XWindowSystem_linux.cpp")
+set(_juce_x11_cpp "${T3K_JUCE_SOURCE_DIR}/modules/juce_gui_basics/native/juce_XWindowSystem_linux.cpp")
 if (EXISTS "${_juce_x11_cpp}")
     file(READ "${_juce_x11_cpp}" _juce_x11_src)
     if (NOT _juce_x11_src MATCHES "T3K_X11_HINT_OVERFLOW")
