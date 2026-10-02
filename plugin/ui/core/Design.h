@@ -4,6 +4,7 @@
 // never see the window size.
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 
 #include <juce_core/system/juce_TargetPlatform.h>
@@ -19,11 +20,19 @@ inline constexpr int kWidth = 1024;
 // Core UI height (content only; Figma's 600 includes a 22px mock title bar).
 inline constexpr int kHeight = 578;
 
-// Artemis has a wider display than the original design box. Keep each axis
-// independent so the native standalone fills the panel without side bars.
-struct DeviceScale { double x, y; };
-inline DeviceScale scaleToDevice(int width, int height, int contentHeight) {
-  return {width / static_cast<double>(kWidth), height / static_cast<double>(contentHeight)};
+// Fit the design into a fixed device viewport without changing its aspect
+// ratio. The viewport itself still fills the display; any spare area becomes
+// an even black letterbox around the UI rather than stretching its artwork.
+struct DeviceFit {
+  double scale;
+  int x;
+  int y;
+};
+inline DeviceFit fitToDevice(int width, int height, int contentHeight) {
+  const double scale = std::min(width / static_cast<double>(kWidth),
+                                height / static_cast<double>(contentHeight));
+  return {scale, static_cast<int>(std::lround((width - kWidth * scale) / 2.0)),
+          static_cast<int>(std::lround((height - contentHeight * scale) / 2.0))};
 }
 
 // Chrome strips that grow the window instead of squishing the core.

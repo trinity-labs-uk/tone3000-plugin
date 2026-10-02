@@ -2031,11 +2031,20 @@ ArtemisKeyboardTests artemisKeyboardTests;
 struct ArtemisViewportTests : juce::UnitTest {
   ArtemisViewportTests() : juce::UnitTest("Artemis viewport", "ui") {}
   void runTest() override {
-    beginTest("the design and chrome fill the 1560 x 720 panel");
-    const auto [x, y] = design::scaleToDevice(1560, 720, design::kHeight + design::kHintHeight);
-    expectWithinAbsoluteError(design::kWidth * x, 1560.0, 0.001);
-    expectWithinAbsoluteError((design::kHeight + design::kHintHeight) * y, 720.0, 0.001);
-    expect(x > y, "horizontal scale must fill the extra display width");
+    beginTest("the complete design fits the 1560 x 720 panel at one scale");
+    constexpr int contentHeight = design::kHeight + design::kHintHeight;
+    const auto fit = design::fitToDevice(1560, 720, contentHeight);
+    expectWithinAbsoluteError(contentHeight * fit.scale, 720.0, 0.001);
+    expect(design::kWidth * fit.scale <= 1560.0);
+    expectEquals(fit.y, 0);
+    expect(fit.x > 0, "the wider panel must be pillarboxed");
+
+    beginTest("circular, square and logo geometry keeps its source aspect");
+    constexpr double sourceDiameter = 80.0;
+    constexpr double logoWidth = 210.0, logoHeight = 32.0;
+    expectWithinAbsoluteError(sourceDiameter * fit.scale, sourceDiameter * fit.scale, 0.001);
+    expectWithinAbsoluteError((logoWidth * fit.scale) / (logoHeight * fit.scale),
+                              logoWidth / logoHeight, 0.001);
   }
 };
 ArtemisViewportTests artemisViewportTests;

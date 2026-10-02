@@ -32,7 +32,7 @@ app_pid=$!
 window_ready=0
 for _ in {1..80}; do
   if xwininfo -root -tree > "$scratch/windows" 2>&1 &&
-     grep -Eq '"TONE3000".*15(4[0-9]|5[0-9]|60)x7(0[0-9]|1[0-9]|20)\+0\+0' "$scratch/windows"; then
+     grep -Eq '"TONE3000".*1560x720\+0\+0' "$scratch/windows"; then
     kill -0 "$app_pid"
     window_ready=1
     break

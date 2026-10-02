@@ -154,9 +154,9 @@ from (`port of KnobControl.tsx`); that is lineage, recorded in
 ## Conventions
 
 - **Design space.** Everything is laid out in the 1024 × 578 design box;
-  `NativeEditor` applies one `AffineTransform`. Artemis stretches that box to
-  its 1560 × 720 display, while regular plugin windows retain their aspect.
-  Never scale by hand. The one
+  `NativeEditor` applies one uniform `AffineTransform`. Artemis centres that
+  box in its full-screen 1560 × 720 viewport, while all plugin windows retain
+  the design aspect ratio. Never scale by hand. The one
   view that holds its size on screen instead (the tone browser's body, so a
   bigger window shows more results) counter-scales by `Services::zoom`, the
   factor the shell publishes on every fit; a `Popover` adopts its anchor's

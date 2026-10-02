@@ -118,8 +118,8 @@ NativeEditor::NativeEditor(TONE3000Processor& owner)
   setResizable(false, false);
 #else
   if (artemisStandalone()) {
-    // The device panel is 1560 x 720. JUCE's fullscreen window takes these
-    // editor bounds; fitRoot fills the same rectangle in both axes.
+    // The editor owns the complete 1560 x 720 panel. fitRoot preserves the
+    // design aspect ratio inside it, leaving black side bars where needed.
     setSize(kArtemisDisplayWidth, kArtemisDisplayHeight);
     setResizable(false, false);
   } else {
@@ -209,10 +209,10 @@ void NativeEditor::setExtraContentHeight(int total, int persistent) {
 void NativeEditor::fitRoot() {
 #if JUCE_LINUX && T3K_ARTEMIS_KIOSK
   if (artemisStandalone()) {
-    const auto [xScale, yScale] = design::scaleToDevice(getWidth(), getHeight(), designHeight());
-    root_.setTransform(juce::AffineTransform::scale(static_cast<float>(xScale), static_cast<float>(yScale)));
-    root_.setTopLeftPosition(0, 0);
-    services_.zoom.set(xScale, yScale);
+    const auto fit = design::fitToDevice(getWidth(), getHeight(), designHeight());
+    root_.setTransform(juce::AffineTransform::scale(static_cast<float>(fit.scale)));
+    root_.setTopLeftPosition(fit.x, fit.y);
+    services_.zoom.set(fit.scale);
     return;
   }
 #endif

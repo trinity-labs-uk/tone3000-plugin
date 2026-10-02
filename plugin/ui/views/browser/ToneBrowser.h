@@ -94,8 +94,7 @@ private:
   bool signedOut() const { return !services_.session.authenticated(); }
   // The signed-out screen: the trending preview, or its sign-in page.
   bool preview() const { return signedOut() && !authPending(); }
-  float zoomX() const { return static_cast<float>(services_.zoom.horizontalFactor()); }
-  float zoomY() const { return static_cast<float>(services_.zoom.verticalFactor()); }
+  float zoom() const { return static_cast<float>(services_.zoom.factor()); }
   // Pre-mounted while an OAuth return still resolves its code exchange.
   bool authPending() const { return services_.session.authPending(); }
   // The search box's text becomes the query (Enter, ×, Escape).
