@@ -1,8 +1,7 @@
-// The window zoom: the one scale the shell's AffineTransform applies to the
-// root (1x..design::kMaxScale, or below 1 when a host squeezes the window).
-// Views lay out in design space and never need it; the exception is what
-// should hold its size on screen while the window grows and use the room
-// for more instead (the tone browser's grid), which counter-scales by it.
+// Window scale. Regular plugin windows use the same factor on both axes;
+// the Artemis standalone stretches its 1024-wide design over the 1560-wide
+// display while preserving the existing 720px height. The tone browser
+// counter-scales each axis so its cards and text remain screen-pixel sized.
 #pragma once
 
 #include <juce_core/juce_core.h>
@@ -17,11 +16,16 @@ public:
   };
 
   double factor() const { return factor_; }
+  double horizontalFactor() const { return factor_; }
+  double verticalFactor() const { return verticalFactor_; }
 
   // The shell, on every fit of the root.
-  void set(double factor) {
-    if (juce::approximatelyEqual(factor, factor_)) return;
-    factor_ = factor;
+  void set(double factor) { set(factor, factor); }
+  void set(double horizontal, double vertical) {
+    if (juce::approximatelyEqual(horizontal, factor_) && juce::approximatelyEqual(vertical, verticalFactor_))
+      return;
+    factor_ = horizontal;
+    verticalFactor_ = vertical;
     listeners_.call([](Listener& l) { l.zoomChanged(); });
   }
 
@@ -30,6 +34,7 @@ public:
 
 private:
   double factor_ = 1.0;
+  double verticalFactor_ = 1.0;
   juce::ListenerList<Listener> listeners_;
 };
 

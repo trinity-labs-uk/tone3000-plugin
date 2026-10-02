@@ -237,8 +237,8 @@ bool PluginRoot::viewportFits() const {
   // for rounding). No parent yet: the check reruns when one arrives.
   const auto* parent = getParentComponent();
   if (parent == nullptr) return false;
-  const float scale = getTransform().mat00;  // pure uniform scale from the shell
-  return parent->getHeight() >= designHeight() * scale - 2;
+  const float verticalScale = getTransform().mat11;
+  return parent->getHeight() >= designHeight() * verticalScale - 2;
 }
 
 void PluginRoot::componentMovedOrResized(juce::Component&, bool, bool) {

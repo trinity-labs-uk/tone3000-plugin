@@ -261,6 +261,14 @@ if (T3K_ARTEMIS_KIOSK)
         message(FATAL_ERROR "T3K_ARTEMIS_KIOSK requires a Linux GUI standalone build")
     endif()
     target_compile_definitions(${PROJECT_NAME} PUBLIC T3K_ARTEMIS_KIOSK=1)
+    set(_artemis_keyboard_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../onscreen-keyboard/native")
+    if (NOT EXISTS "${_artemis_keyboard_dir}/JuceKeyboard.cpp")
+        message(FATAL_ERROR "T3K_ARTEMIS_KIOSK requires the sibling src/onscreen-keyboard submodule")
+    endif()
+    target_sources(${PROJECT_NAME} PRIVATE
+        "${_artemis_keyboard_dir}/JuceKeyboard.h"
+        "${_artemis_keyboard_dir}/JuceKeyboard.cpp")
+    target_include_directories(${PROJECT_NAME} PRIVATE "${_artemis_keyboard_dir}")
     target_compile_definitions(${PROJECT_NAME}_Standalone PRIVATE
         JUCE_STANDALONE_FILTER_WINDOW_USE_KIOSK_MODE=1)
 endif()

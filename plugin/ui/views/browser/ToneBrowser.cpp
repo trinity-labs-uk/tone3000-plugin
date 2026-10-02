@@ -377,9 +377,9 @@ void ToneBrowser::resized() {
 
   // The body holds 1x on screen: counter-scaled by the zoom and sized in
   // screen pixels over that box.
-  const float z = zoom();
-  body_->setTransform(juce::AffineTransform::scale(1 / z).translated(0, static_cast<float>(top)));
-  body_->setBounds(0, 0, juce::roundToInt(w * z), juce::roundToInt(h * z));
+  const float zx = zoomX(), zy = zoomY();
+  body_->setTransform(juce::AffineTransform::scale(1 / zx, 1 / zy).translated(0, static_cast<float>(top)));
+  body_->setBounds(0, 0, juce::roundToInt(w * zx), juce::roundToInt(h * zy));
   layoutBody();
 }
 
@@ -387,7 +387,7 @@ void ToneBrowser::resized() {
 // design px wide: that times the zoom.
 void ToneBrowser::layoutBody() {
   const int w = body_->getWidth(), h = body_->getHeight();
-  const int colW = std::min(juce::roundToInt(kColumnWidth * zoom()), w);
+  const int colW = std::min(juce::roundToInt(kColumnWidth * zoomX()), w);
   const int colX = (w - colW) / 2;
   int y = 0;
   if (search_.isVisible()) {
@@ -424,7 +424,7 @@ void ToneBrowser::paintScrollFades(juce::Graphics& g) {
 void ToneBrowser::layoutContent() {
   const int w = scroller_->getWidth();
   if (w <= 0) return;
-  const int colW = std::min(juce::roundToInt(kColumnWidth * zoom()), w);
+  const int colW = std::min(juce::roundToInt(kColumnWidth * zoomX()), w);
   const int colX = (w - colW) / 2;
   int y = 0;
 

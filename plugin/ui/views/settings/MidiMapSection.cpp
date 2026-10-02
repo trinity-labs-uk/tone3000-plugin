@@ -150,6 +150,7 @@ public:
     cc_.setBorder(form::kFieldBorder);
     cc_.setPadding(4, 6, 6);
     cc_.setJustification(juce::Justification::centred);
+    cc_.setNumpad(true);
     cc_.setName("CC number");
     cc_.onChange = [this, draft = std::move(onDraft)](const juce::String& text) {
       // Digits only, at most three.

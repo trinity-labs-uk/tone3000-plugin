@@ -32,6 +32,8 @@ public:
   void setBackground(juce::Colour colour) { background_ = colour; }
   void setBorder(std::optional<juce::Colour> colour) { border_ = colour; }
   void setJustification(juce::Justification just) { editor_.setJustification(just); }
+  // Device-only keyboard hint; ignored by desktop hosts.
+  void setNumpad(bool enabled) { editor_.setComponentID(enabled ? "osk-numpad" : ""); }
   // Glyph inside the field at `left` px, vertically centred (the search
   // fields' magnifier); the left padding should leave room for it.
   void setLeadingIcon(Icon icon, float size, int left, juce::Colour colour);

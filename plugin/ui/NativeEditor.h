@@ -5,8 +5,8 @@
 // on request.
 //
 // The root is laid out in design space and scaled with one AffineTransform:
-// top-anchored and horizontally centred in whatever box the host actually
-// gives us, so a refused resize letterboxes instead of squishing.
+// hosted windows keep their aspect ratio; the Artemis standalone fills its
+// 1560 x 720 display with independent horizontal and vertical factors.
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -21,11 +21,11 @@
 #include "views/PluginRoot.h"
 #include "widgets/KnobFace.h"
 
-namespace t3k::ui {
-
 #if JUCE_LINUX && T3K_ARTEMIS_KIOSK
-class ArtemisKeyboard;
+namespace artemis::osk { class JuceKeyboard; }
 #endif
+
+namespace t3k::ui {
 
 class NativeEditor : public juce::AudioProcessorEditor, public Shell, private juce::Timer {
 public:
@@ -129,7 +129,7 @@ private:
   FontsReady fontsReady_;
   PluginRoot root_;
 #if JUCE_LINUX && T3K_ARTEMIS_KIOSK
-  std::unique_ptr<ArtemisKeyboard> artemisKeyboard_;
+  std::unique_ptr<artemis::osk::JuceKeyboard> artemisKeyboard_;
 #endif
 };
 

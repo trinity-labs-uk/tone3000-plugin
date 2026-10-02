@@ -51,6 +51,9 @@
 #include "widgets/form/FormControls.h"
 #include "widgets/Popover.h"
 #include "widgets/SegmentedText.h"
+#if T3K_TEST_ARTEMIS_KEYBOARD
+#include "JuceKeyboard.h"
+#endif
 
 namespace t3k::ui::testbed {
 
@@ -1953,6 +1956,90 @@ struct FaceplateDualMonoTests : juce::UnitTest {
     }
   }
 };
+
+#if T3K_TEST_ARTEMIS_KEYBOARD
+struct ArtemisKeyboardTests : juce::UnitTest {
+  ArtemisKeyboardTests() : juce::UnitTest("Artemis native keyboard", "ui") {}
+  void runTest() override {
+    juce::Component host, content;
+    host.setSize(1560, 720);
+    content.setBounds(host.getLocalBounds());
+    host.addAndMakeVisible(content);
+    juce::TextEditor field;
+    field.setName("test field");
+    field.setBounds(120, 100, 280, 45);
+    content.addAndMakeVisible(field);
+    artemis::osk::JuceKeyboard keyboard(host, content);
+    host.addChildComponent(keyboard);
+    juce::DocumentWindow window("native keyboard test", juce::Colours::black, 0);
+    window.setContentNonOwned(&host, true);
+    window.setVisible(true);
+
+    auto pump = [] { juce::MessageManager::getInstance()->runDispatchLoopUntil(60); };
+    auto press = [&](const juce::String& label) {
+      for (auto* child : keyboard.getChildren())
+        if (auto* button = dynamic_cast<juce::Button*>(child); button != nullptr && button->getButtonText() == label) {
+          button->triggerClick();
+          pump();
+          return true;
+        }
+      return false;
+    };
+
+    beginTest("focus opens keyboard and text keys edit the active JUCE field");
+    field.grabKeyboardFocus();
+    pump();
+    expect(keyboard.isVisible());
+    expectEquals(keyboard.getWidth(), 1560);
+    expect(field.hasKeyboardFocus(false), "keyboard opening took focus from the field");
+    expect(press("Q"));
+    expectEquals(field.getText(), juce::String("Q"));
+    auto* focusedAfterKey = juce::Component::getCurrentlyFocusedComponent();
+    expect(field.hasKeyboardFocus(false), "key press took focus from the field; now " +
+                                             (focusedAfterKey != nullptr ? focusedAfterKey->getName() : "none"));
+    expect(press("DEL"));
+    expect(field.getText().isEmpty());
+
+    beginTest("hide closes and the field can reopen the keyboard");
+    expect(press("HIDE"));
+    expect(!keyboard.isVisible());
+    expect(!field.hasKeyboardFocus(false));
+    field.grabKeyboardFocus();
+    pump();
+    expect(keyboard.isVisible());
+
+    beginTest("keyboard moves above a low field and enter dismisses");
+    field.setBounds(120, 650, 280, 45);
+    keyboard.layoutIn(host.getLocalBounds());
+    expectEquals(keyboard.getY(), 0);
+    expect(press("ENTER"));
+    expect(!keyboard.isVisible());
+
+    beginTest("numeric fields use the one-row numpad");
+    field.setComponentID("osk-numpad");
+    field.grabKeyboardFocus();
+    pump();
+    expectEquals(keyboard.getNumChildComponents(), 12);
+    expect(press("7"));
+    expectEquals(field.getText(), juce::String("7"));
+    expect(press("HIDE"));
+    window.setVisible(false);
+  }
+};
+ArtemisKeyboardTests artemisKeyboardTests;
+
+struct ArtemisViewportTests : juce::UnitTest {
+  ArtemisViewportTests() : juce::UnitTest("Artemis viewport", "ui") {}
+  void runTest() override {
+    beginTest("the design and chrome fill the 1560 x 720 panel");
+    const auto [x, y] = design::scaleToDevice(1560, 720, design::kHeight + design::kHintHeight);
+    expectWithinAbsoluteError(design::kWidth * x, 1560.0, 0.001);
+    expectWithinAbsoluteError((design::kHeight + design::kHintHeight) * y, 720.0, 0.001);
+    expect(x > y, "horizontal scale must fill the extra display width");
+  }
+};
+ArtemisViewportTests artemisViewportTests;
+#endif
 
 HtmlTests htmlTests;
 FontTests fontTests;

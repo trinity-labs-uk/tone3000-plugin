@@ -1,12 +1,17 @@
 #include "NativeEditor.h"
 
 #include "core/Fonts.h"
+#if JUCE_LINUX && T3K_ARTEMIS_KIOSK
+#include "JuceKeyboard.h"
+#endif
 
 namespace t3k::ui {
 
 namespace {
 #if JUCE_LINUX && T3K_ARTEMIS_KIOSK
 bool artemisStandalone() { return StandaloneAudioSettings::isAvailable(); }
+constexpr int kArtemisDisplayWidth = 1560;
+constexpr int kArtemisDisplayHeight = 720;
 #else
 bool artemisStandalone() { return false; }
 #endif
@@ -27,82 +32,6 @@ juce::String rendererName(const juce::ComponentPeer& peer) {
 }
 
 }  // namespace
-
-#if JUCE_LINUX && T3K_ARTEMIS_KIOSK
-// The old WebView injected a touchscreen keyboard into HTML fields. The
-// native UI uses JUCE TextEditors, so keep that input path at the editor
-// level, including search, preset names and numeric parameter entry.
-class ArtemisKeyboard : public juce::Component, private juce::FocusChangeListener {
-public:
-  explicit ArtemisKeyboard(juce::Component& content) : content_(content) {
-    const juce::String rows[]{"1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"};
-    for (const auto& row : rows) {
-      for (int i = 0; i < row.length(); ++i) addKey(row.substring(i, i + 1));
-      rowLengths_.add(row.length());
-    }
-    for (const auto& label : {"Shift", "Space", "Backspace", "Enter", "Close"}) addKey(label);
-    rowLengths_.add(5);
-    juce::Desktop::getInstance().addFocusChangeListener(this);
-    setVisible(false);
-  }
-
-  ~ArtemisKeyboard() override { juce::Desktop::getInstance().removeFocusChangeListener(this); }
-
-  void resized() override {
-    constexpr int gap = 5, rowHeight = 38;
-    int index = 0, y = 8;
-    for (const auto count : rowLengths_) {
-      const int keyWidth = (getWidth() - 16 - gap * (count - 1)) / count;
-      int x = 8;
-      for (int n = 0; n < count; ++n) {
-        keys_[index++]->setBounds(x, y, keyWidth, rowHeight);
-        x += keyWidth + gap;
-      }
-      y += rowHeight + gap;
-    }
-  }
-
-  void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff1a1a1a)); }
-
-private:
-  void addKey(const juce::String& label) {
-    auto* key = keys_.add(new juce::TextButton(label));
-    key->setMouseClickGrabsKeyboardFocus(false);
-    key->onClick = [this, label] {
-      auto* editor = target_.getComponent();
-      if (label == "Close") { setVisible(false); return; }
-      if (editor == nullptr) { setVisible(false); return; }
-      if (label == "Shift") { shifted_ = !shifted_; return; }
-      if (label == "Backspace") {
-        editor->keyPressed(juce::KeyPress(juce::KeyPress::backspaceKey));
-      } else if (label == "Enter") {
-        editor->keyPressed(juce::KeyPress(juce::KeyPress::returnKey));
-      } else {
-        editor->insertTextAtCaret(label == "Space" ? " " : shifted_ ? label.toUpperCase() : label);
-      }
-    };
-    addAndMakeVisible(key);
-  }
-
-  void globalFocusChanged(juce::Component* focused) override {
-    auto* editor = dynamic_cast<juce::TextEditor*>(focused);
-    if (editor != nullptr && (editor == &content_ || content_.isParentOf(editor))) {
-      target_ = editor;
-      setVisible(true);
-      toFront(false);
-    } else if (focused == nullptr || !isParentOf(focused)) {
-      target_ = nullptr;
-      setVisible(false);
-    }
-  }
-
-  juce::Component& content_;
-  juce::OwnedArray<juce::TextButton> keys_;
-  juce::Array<int> rowLengths_;
-  juce::Component::SafePointer<juce::TextEditor> target_;
-  bool shifted_ = false;
-};
-#endif
 
 NativeEditor::Trace::Trace(const TONE3000Processor& processor) {
   // Everything a Windows-10-vs-11 / host-specific report needs in one line:
@@ -169,7 +98,7 @@ NativeEditor::NativeEditor(TONE3000Processor& owner)
   addAndMakeVisible(root_);
 #if JUCE_LINUX && T3K_ARTEMIS_KIOSK
   if (artemisStandalone()) {
-    artemisKeyboard_ = std::make_unique<ArtemisKeyboard>(root_);
+    artemisKeyboard_ = std::make_unique<artemis::osk::JuceKeyboard>(*this, root_);
     addChildComponent(*artemisKeyboard_);
   }
 #endif
@@ -189,9 +118,9 @@ NativeEditor::NativeEditor(TONE3000Processor& owner)
   setResizable(false, false);
 #else
   if (artemisStandalone()) {
-    // JUCE's standalone window owns the display. Keep the design at its
-    // natural size here; fitRoot scales it into the live screen bounds.
-    setSize(design::kWidth, designHeight());
+    // The device panel is 1560 x 720. JUCE's fullscreen window takes these
+    // editor bounds; fitRoot fills the same rectangle in both axes.
+    setSize(kArtemisDisplayWidth, kArtemisDisplayHeight);
     setResizable(false, false);
   } else {
   setResizable(true, true);
@@ -278,6 +207,15 @@ void NativeEditor::setExtraContentHeight(int total, int persistent) {
 }
 
 void NativeEditor::fitRoot() {
+#if JUCE_LINUX && T3K_ARTEMIS_KIOSK
+  if (artemisStandalone()) {
+    const auto [xScale, yScale] = design::scaleToDevice(getWidth(), getHeight(), designHeight());
+    root_.setTransform(juce::AffineTransform::scale(static_cast<float>(xScale), static_cast<float>(yScale)));
+    root_.setTopLeftPosition(0, 0);
+    services_.zoom.set(xScale, yScale);
+    return;
+  }
+#endif
   const double byWidth = getWidth() / static_cast<double>(design::kWidth);
   const double byHeight = getHeight() / static_cast<double>(designHeight());
   double scale = byWidth;
@@ -332,10 +270,7 @@ void NativeEditor::resized() {
   }
   fitRoot();
 #if JUCE_LINUX && T3K_ARTEMIS_KIOSK
-  if (artemisKeyboard_ != nullptr)
-    artemisKeyboard_->setBounds(juce::jmax(0, (getWidth() - 800) / 2),
-                                juce::jmax(0, getHeight() - 202),
-                                juce::jmin(getWidth(), 800), 202);
+  if (artemisKeyboard_ != nullptr) artemisKeyboard_->layoutIn(getLocalBounds());
 #endif
   // Persist the user's (or host's) chosen scale; skip while correcting our
   // own size. No chosen scale exists on iOS (the window is the screen).

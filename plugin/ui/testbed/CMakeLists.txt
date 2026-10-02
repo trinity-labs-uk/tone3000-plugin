@@ -21,6 +21,16 @@ juce_add_gui_app(UiTestbed PRODUCT_NAME "UiTestbed" COMPANY_NAME "TONE3000")
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/../NativeUi.cmake")
 t3k_add_native_ui(UiTestbed)
+target_include_directories(UiTestbed PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../include")
+
+# The Artemis checkout carries a JUCE keyboard beside the React package.
+# Exercise its real focus and button behaviour in the UI testbed when present.
+set(_artemis_keyboard_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../../../onscreen-keyboard/native")
+if (EXISTS "${_artemis_keyboard_dir}/JuceKeyboard.cpp")
+    target_sources(UiTestbed PRIVATE "${_artemis_keyboard_dir}/JuceKeyboard.cpp")
+    target_include_directories(UiTestbed PRIVATE "${_artemis_keyboard_dir}")
+    target_compile_definitions(UiTestbed PRIVATE T3K_TEST_ARTEMIS_KEYBOARD=1)
+endif()
 
 target_sources(UiTestbed PRIVATE
     Main.cpp

@@ -19,6 +19,13 @@ inline constexpr int kWidth = 1024;
 // Core UI height (content only; Figma's 600 includes a 22px mock title bar).
 inline constexpr int kHeight = 578;
 
+// Artemis has a wider display than the original design box. Keep each axis
+// independent so the native standalone fills the panel without side bars.
+struct DeviceScale { double x, y; };
+inline DeviceScale scaleToDevice(int width, int height, int contentHeight) {
+  return {width / static_cast<double>(kWidth), height / static_cast<double>(contentHeight)};
+}
+
 // Chrome strips that grow the window instead of squishing the core.
 inline constexpr int kBannerHeight = 44;   // AppBanner.tsx
 inline constexpr int kHintHeight = 36;     // HintBar.tsx
